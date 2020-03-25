@@ -478,6 +478,10 @@ OSNRanalytical = GNmodelresbase[3]
 
 numdraws = np.linspace(0,numpoints-1, numpoints)
 
+
+
+
+
 # %% ================================ Mutual information estimation ===========================================
   
 # import constellation shapes from MATLAB-generated csv files 
@@ -629,8 +633,6 @@ for i in range(np.size(PchreachdBm)):
 GNPysnr = np.genfromtxt(open("SNRGNPyvargainsysmar0ch2.csv", "r"), delimiter=",", dtype =float)
 GNPyosnr = np.genfromtxt(open("OSNRGNPyvargainsysmar0ch2.csv", "r"), delimiter=",", dtype =float)
 
-
-print("git change")
 
 # =============================================================================
 # #plt.plot(PchdBm, IxyRS,label = '50GHz non-Nyquist ')
