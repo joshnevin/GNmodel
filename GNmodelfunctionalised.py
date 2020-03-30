@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 #import komm
 import multiprocessing
 import time 
-
+import pystan
 from scipy import special
 from scipy.stats import iqr
 #from sklearn.gaussian_process import GaussianProcessRegressor
@@ -382,54 +382,104 @@ NF = lin2db(db2lin(nf1) + db2lin(nf2)/db2lin(g1a))
 
 
 # =========================== differing spans bit ==================================
+
 def spanvar(PchdBm):
-    Gnlispanvar = np.zeros(Nspans)
-    Pasespanvar = np.zeros(Nspans)
+    alpha = np.zeros(Nspans)
+    #Disp = np.zeros(Nspans)
     ep = np.zeros(Nspans)
+    gain_target = np.zeros(Nspans)
+    Gnlispanvar = np.zeros((Nspans,numpoints))
+    ep = np.zeros((Nspans,numpoints))
     lam = 1550
     Rs = 32
     f = 299792458/(lam*1e-9) # operating frequency [Hz]
     h = 6.63*1e-34  # Planck's constant [Js] 
-    for i in range(Nspans):
-            
-        alpha2 = histdraw(countsnorm, bins)
-        gain_target = alpha2*Lspans
-        g1a = gain_target - deltap - (gain_max - gain_target)
-        NF = lin2db(db2lin(nf1) + db2lin(nf2)/db2lin(g1a)) 
-        NFl = 10**(NF/10) 
-        Gl = 10**(gain_target/10)
-        Gnlispanvar[i] = main(Lspans, Nspans, 157, 101, 201, alpha2, Disp, PchdBm, NF, NLco)[4]
-        ep[i] = main(Lspans, Nspans, 157, 101, 201, alpha2, Disp, PchdBm, NF, NLco)[5]
-        # ASE noise bit 
-        Pasespanvar[i] = NFl*h*f*(Gl - 1)*Rs*1e9
-        
-    Pasech = np.sum(Pasespanvar)
-    Gnli = np.sum(Gnlispanvar)*(Nspans**(np.mean(ep)))
-    Pch = 1e-3*10**(PchdBm/10)  # ^ [W]
+    for i in range(Nspans):  # draw the span loss from a distribution 
+        alpha[i] = histdraw(countsnorm, bins)
+    gain_target = alpha*Lspans 
+    g1a = gain_target - deltap*np.ones(Nspans) - (gain_max*np.ones(Nspans) - gain_target)
+    NF = lin2db(db2lin(nf1) + db2lin(nf2)/db2lin(g1a)) 
+    NFl = 10**(NF/10) 
+    Gl = 10**(gain_target/10)
     
+    for i in range(Nspans):
+        Gnlispanvar[i] = main(Lspans, Nspans, 157, 101, 201, alpha[i], Disp, PchdBm, NF[i], NLco)[4]
+        ep[i] = main(Lspans, Nspans, 157, 101, 201, alpha[i], Disp, PchdBm, NF[i], NLco)[5]
+    
+    Pasespanvar = NFl*h*f*(Gl - 1)*Rs*1e9
+    Pasech = np.sum(Pasespanvar)
+    Gnli = np.sum(Gnlispanvar,axis=0)*(Nspans**(np.mean(ep)))
+    Pch = 1e-3*10**(PchdBm/10)  # ^ [W]
     return 10*np.log10((Pch)/(Pasech + Gnli*Rs*1e9))
+
+numsweeps = 100
+SNRdataset = []
+for _ in range(numsweeps):
+    SNRdataset = np.append(SNRdataset,spanvar(PchdBm))
+
+PchdBmrs = []
+for _ in range(numsweeps):
+    PchdBmrs.append(PchdBm)
+PchdBmrs = np.reshape(PchdBmrs,numpoints*numsweeps)
+
+SNRtest1 = spanvar(PchdBm)
+SNRtest2 = spanvar(PchdBm)
+SNRtest3 = spanvar(PchdBm)
+SNRtest4 = spanvar(PchdBm)
+
+plt.plot(PchdBm, SNRtest1, label = 'draw one')
+plt.plot(PchdBm, SNRtest2, label = 'draw two')
+plt.plot(PchdBm, SNRtest3, label = 'draw three') 
+plt.plot(PchdBm, SNRtest4, label = 'draw four') 
+plt.ylabel('SNR (dB)')
+plt.xlabel('Pch (dBm)')
+plt.legend()
+plt.title('SNR vs Pch for NDFIS loss')
+#plt.grid()
+#plt.savefig('SNRvspch10spans.pdf', dpi=200)
+plt.show() 
+
+
+plt.plot(PchdBmrs, SNRdataset,'*', label = 'draw one')
+plt.ylabel('SNR (dB)')
+plt.xlabel('Pch (dBm)')
+plt.legend()
+plt.title('SNR vs Pch for NDFIS loss')
+#plt.grid()
+#plt.savefig('SNRvspch10spans.pdf', dpi=200)
+plt.show() 
+
+np.savetxt('SNRvspch1span.csv', SNRdataset, delimiter=',') 
+np.savetxt('PchdBmrs.csv', PchdBmrs, delimiter=',') 
+
+
+
+# %%
 
 numpointsdg = 100
 #PchdBmdata = np.random.uniform(-10,10, numpointsdg)
-PchdBmdata = np.linspace(-10,10,numpointsdg)
-start_time = time.time()
-def datagenpar(Pch):
-    with multiprocessing.Pool() as pool:
-        SNR = pool.map(spanvar, Pch) 
-    return SNR
-numsweeps = 10
-SNRdataset = []
-for _ in range(numsweeps):
-    SNRdataset.append(datagenpar(PchdBmdata))
 
-SNRdatasetrs = np.reshape(SNRdataset,numpointsdg*numsweeps)
-PchdBmrs = []
-for _ in range(numsweeps):
-    PchdBmrs.append(PchdBmdata)
-PchdBmrs = np.reshape(PchdBmrs,numpointsdg*numsweeps)
-
-duration = time.time() - start_time
-print(duration)
+#start_time = time.time()
+#def datagenpar(Pch):
+#    with multiprocessing.Pool() as pool:
+#        SNR = pool.map(spanvar, Pch) 
+#    return SNR
+# =============================================================================
+# numsweeps = 1
+# SNRdataset = []
+# for _ in range(numsweeps):
+#     #SNRdataset.append(datagenpar(PchdBmdata))
+#     for j in range(np.size(PchdBmdata)):
+#         SNRdataset.append(spanvar(PchdBmdata[j]))
+# SNRdatasetrs = np.reshape(SNRdataset,numpointsdg*numsweeps)
+# PchdBmrs = []
+# for _ in range(numsweeps):
+#     PchdBmrs.append(PchdBmdata)
+# PchdBmrs = np.reshape(PchdBmrs,numpointsdg*numsweeps)
+# 
+# duration = time.time() - start_time
+# print("SNR dataset calculation duration: " + str(duration))
+# =============================================================================
  
 #%% =============================================================================
 #plt.plot(PchdBmdata,SNRdataset[0],'*', label= 'sweep 1')
@@ -437,24 +487,19 @@ print(duration)
 #plt.plot(PchdBmdata,SNRdataset[2],'^', label= 'sweep 3')
 #plt.plot(PchdBmdata,SNRdataset[3],'.', label= 'sweep 4')
 #plt.plot(PchdBmdata,SNRdataset[4],'>', label= 'sweep 5')
-plt.plot(PchdBmrs,SNRdatasetrs,'*', label= 'SNR Dataset')
-plt.ylabel('SNR (dB)')
-plt.xlabel('Pch (dBm)')
-plt.legend()
-plt.title('SNR vs Pch for NDFIS loss')
-plt.grid()
-plt.savefig('SNRvspch10sweeps.pdf', dpi=200)
-plt.show()
+
 # =============================================================================
 
-plt.plot(PchdBmdata,SNRdataset[0],'*', label= 'SNR Dataset')
-plt.ylabel('SNR (dB)')
-plt.xlabel('Pch (dBm)')
-plt.legend()
-plt.title('SNR vs Pch for NDFIS loss')
-plt.grid()
-plt.savefig('SNRvspchsweep0.pdf', dpi=200)
-plt.show()
+# =============================================================================
+# plt.plot(PchdBmdata,SNRdataset[0],'*', label= 'SNR Dataset')
+# plt.ylabel('SNR (dB)')
+# plt.xlabel('Pch (dBm)')
+# plt.legend()
+# plt.title('SNR vs Pch for NDFIS loss')
+# plt.grid()
+# plt.savefig('SNRvspchsweep0.pdf', dpi=200)
+# plt.show()
+# =============================================================================
 
 
 #%% ====================================================================================
@@ -560,9 +605,13 @@ start_time = time.time()
 IxyNy = findMI(SNRanalyticalbase)
 IxyRS = findMI(SNRanalyticalRSbase)
 IxyRS2 = findMI(SNRanalyticalRS2base)
-#Ixy = [MIGHquad(M,L,i) for i in SNR ]
+
+#IxyNy = [MIGHquad(i) for i in SNRanalyticalbase ]
+#IxyRS = [MIGHquad(i) for i in SNRanalyticalRSbase ]
+#IxyRS2 = [MIGHquad(i) for i in SNRanalyticalRS2base ]
+
 duration = time.time() - start_time
-print(duration)
+print("MI calculation duration: " + str(duration))
 
 # %% ================================== Reach calculation ==================================
 
