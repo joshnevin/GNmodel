@@ -29,15 +29,18 @@ NDFISimport = True
 repairlossimport = True
 constellationimport = True
 reachcalculation = False
-addEDFAnoise = True
-
-gdiffmean = 0.1
-gdiffvar = gdiffmean*0.1
+#addnoise = True
 
 
-numpoints = 50
+asediffmean = 5e-6
+asediffvar = asediffmean*0.2
 
-def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam ):
+TRxSNR = db2lin(26) # TRX SNR [dB], see The Impact of Transceiver Noise on Digital Nonlinearity Compensation - Daniel Semrau et. al. 
+TRxdiffmean = db2lin(1.0)
+TRxdiffvar = TRxdiffmean*0.2
+numpoints = 1000
+
+def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam, addnoise ):
     
     
     #  ################### equipment characteristics ####################
@@ -118,53 +121,103 @@ def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam ):
     
     
     for i in range(numpoints):
-        
-        if np.size(Pasech) > 1 and np.size(GnliEq13mul) > 1 and np.size(Pch)==1:
-            SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech[i] + GnliEq13mul[i]*Rs*1e9))
-            SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO[i] + GnliEq13mul[i]*OSNRmeasBW))
-            OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO[i])
-            SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
-            SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2[i] + GnliEq15mul2[i]*BchRS2*1e9))
+        if addnoise:
+            np.random.seed()
+            Pasepert = np.random.normal(asediffmean,asediffvar)            
+            TRxpert = np.random.normal(TRxdiffmean,TRxdiffvar)            
+            if np.size(Pasech) > 1 and np.size(GnliEq13mul) > 1 and np.size(Pch)==1:
+                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch)/(Pasech[i]+(-asediffmean+Pasepert) + GnliEq13mul[i]*Rs*1e9) )  + (1/(TRxSNR-TRxdiffmean+TRxpert)) )  ) 
+                SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO[i] + GnliEq13mul[i]*OSNRmeasBW))
+                OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO[i])
+                SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
+                SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2[i] + GnliEq15mul2[i]*BchRS2*1e9))
+                
+            elif np.size(Pasech) > 1 and np.size(GnliEq13mul) == 1 and np.size(Pch)==1:    
+                
+                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch)/(Pasech[i]+(-asediffmean+Pasepert) + GnliEq13mul*Rs*1e9) )  + (1/(TRxSNR-TRxdiffmean+TRxpert)) )  ) 
+                SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO[i] + GnliEq13mul*OSNRmeasBW))
+                SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2[i] + GnliEq15mul2*BchRS2*1e9))
+                SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS[i] + GnliEq15mul*BchRS*1e9))
+                OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO[i])
             
-        elif np.size(Pasech) > 1 and np.size(GnliEq13mul) == 1 and np.size(Pch)==1:    
+            elif np.size(Pasech) == 1 and np.size(GnliEq13mul) > 1 and np.size(Pch)==1:    
             
-            SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech[i] + GnliEq13mul*Rs*1e9))
-            SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO[i] + GnliEq13mul*OSNRmeasBW))
-            SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2[i] + GnliEq15mul2*BchRS2*1e9))
-            SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS[i] + GnliEq15mul*BchRS*1e9))
-            OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO[i])
-        
-        elif np.size(Pasech) == 1 and np.size(GnliEq13mul) > 1 and np.size(Pch)==1:    
-        
-            SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech + GnliEq13mul[i]*Rs*1e9))
-            SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO + GnliEq13mul[i]*Rs*1e9))
-            #SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech + GnliEq13mul[i]*OSNRmeasBW))
-            SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS + GnliEq15mul[i]*BchRS*1e9))
-            SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2 + GnliEq15mul2[i]*BchRS2*1e9))
-            OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO)       
-        
-        elif np.size(Pasech) == 1 and np.size(GnliEq13mul) > 1 and np.size(Pch) > 1:    
-        
-            SNRanalytical[i] = 10*np.log10((LF*Pch[i])/(Pasech + GnliEq13mul[i]*Rs*1e9))
-            SNRanalyticalO[i] = 10*np.log10((LF*Pch[i])/(PasechO + GnliEq13mul[i]*OSNRmeasBW))
-            SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS + GnliEq15mul[i]*BchRS*1e9))
-            SNRanalyticalRS2[i] = 10*np.log10((LF*Pch[i])/(PasechRS2 + GnliEq15mul2[i]*BchRS2*1e9))
-            OSNRanalytical[i] = 10*np.log10((LF*Pch[i])/PasechO)      
+                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch)/(Pasech+(-asediffmean+Pasepert) + GnliEq13mul[i]*Rs*1e9) )  + (1/(TRxSNR-TRxdiffmean+TRxpert)) )  ) 
+                SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO + GnliEq13mul[i]*Rs*1e9))
+                #SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech + GnliEq13mul[i]*OSNRmeasBW))
+                SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS + GnliEq15mul[i]*BchRS*1e9))
+                SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2 + GnliEq15mul2[i]*BchRS2*1e9))
+                OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO)       
             
-        elif np.size(Pasech) == 1 and np.size(GnliEq13mul) == 1 and np.size(Pch) == 1:    
-        
-            SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech + GnliEq13mul*Rs*1e9))
-            SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO + GnliEq13mul*OSNRmeasBW))
-            SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS + GnliEq15mul*BchRS*1e9))
-            SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2 + GnliEq15mul2*BchRS2*1e9))   
-            OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO)
+            elif np.size(Pasech) == 1 and np.size(GnliEq13mul) > 1 and np.size(Pch) > 1:    
+            
+                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch[i])/(Pasech+(-asediffmean+Pasepert) + GnliEq13mul[i]*Rs*1e9) )  + (1/(TRxSNR-TRxdiffmean+TRxpert)) )  ) 
+                SNRanalyticalO[i] = 10*np.log10((LF*Pch[i])/(PasechO + GnliEq13mul[i]*OSNRmeasBW))
+                SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS + GnliEq15mul[i]*BchRS*1e9))
+                SNRanalyticalRS2[i] = 10*np.log10((LF*Pch[i])/(PasechRS2 + GnliEq15mul2[i]*BchRS2*1e9))
+                OSNRanalytical[i] = 10*np.log10((LF*Pch[i])/PasechO)      
+                
+            elif np.size(Pasech) == 1 and np.size(GnliEq13mul) == 1 and np.size(Pch) == 1:    
+            
+                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch)/(Pasech+(-asediffmean+Pasepert) + GnliEq13mul*Rs*1e9) )  + (1/(TRxSNR-TRxdiffmean+TRxpert)) )  ) 
+                SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO + GnliEq13mul*OSNRmeasBW))
+                SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS + GnliEq15mul*BchRS*1e9))
+                SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2 + GnliEq15mul2*BchRS2*1e9))   
+                OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO)
+            else:
+                #SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
+                SNRanalytical[i] = 10*np.log10((LF*Pch[i])/(Pasech[i]+(-asediffmean+Pasepert) + GnliEq13mul[i]*Rs*1e9))
+                SNRanalyticalO[i] = 10*np.log10((LF*Pch[i])/(PasechO[i] + GnliEq13mul[i]*OSNRmeasBW))
+                SNRanalyticalRS2[i] = 10*np.log10((LF*Pch[i])/(PasechRS2[i] + GnliEq15mul2[i]*BchRS2*1e9))
+                SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
+                OSNRanalytical[i] = 10*np.log10((LF*Pch[i])/PasechO[i])  
         else:
-            #SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
-            SNRanalytical[i] = 10*np.log10((LF*Pch[i])/(Pasech[i] + GnliEq13mul[i]*Rs*1e9))
-            SNRanalyticalO[i] = 10*np.log10((LF*Pch[i])/(PasechO[i] + GnliEq13mul[i]*OSNRmeasBW))
-            SNRanalyticalRS2[i] = 10*np.log10((LF*Pch[i])/(PasechRS2[i] + GnliEq15mul2[i]*BchRS2*1e9))
-            SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
-            OSNRanalytical[i] = 10*np.log10((LF*Pch[i])/PasechO[i])
+            if np.size(Pasech) > 1 and np.size(GnliEq13mul) > 1 and np.size(Pch)==1:
+                SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech[i] + GnliEq13mul[i]*Rs*1e9))
+                SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO[i] + GnliEq13mul[i]*OSNRmeasBW))
+                OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO[i])
+                SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
+                SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2[i] + GnliEq15mul2[i]*BchRS2*1e9))
+                
+            elif np.size(Pasech) > 1 and np.size(GnliEq13mul) == 1 and np.size(Pch)==1:    
+                
+                SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech[i] + GnliEq13mul*Rs*1e9))
+                SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO[i] + GnliEq13mul*OSNRmeasBW))
+                SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2[i] + GnliEq15mul2*BchRS2*1e9))
+                SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS[i] + GnliEq15mul*BchRS*1e9))
+                OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO[i])
+            
+            elif np.size(Pasech) == 1 and np.size(GnliEq13mul) > 1 and np.size(Pch)==1:    
+            
+                SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech + GnliEq13mul[i]*Rs*1e9))
+                SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO + GnliEq13mul[i]*Rs*1e9))
+                #SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech + GnliEq13mul[i]*OSNRmeasBW))
+                SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS + GnliEq15mul[i]*BchRS*1e9))
+                SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2 + GnliEq15mul2[i]*BchRS2*1e9))
+                OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO)       
+            
+            elif np.size(Pasech) == 1 and np.size(GnliEq13mul) > 1 and np.size(Pch) > 1:    
+            
+                SNRanalytical[i] = 10*np.log10((LF*Pch[i])/(Pasech + GnliEq13mul[i]*Rs*1e9))
+                SNRanalyticalO[i] = 10*np.log10((LF*Pch[i])/(PasechO + GnliEq13mul[i]*OSNRmeasBW))
+                SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS + GnliEq15mul[i]*BchRS*1e9))
+                SNRanalyticalRS2[i] = 10*np.log10((LF*Pch[i])/(PasechRS2 + GnliEq15mul2[i]*BchRS2*1e9))
+                OSNRanalytical[i] = 10*np.log10((LF*Pch[i])/PasechO)      
+                
+            elif np.size(Pasech) == 1 and np.size(GnliEq13mul) == 1 and np.size(Pch) == 1:    
+            
+                SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech + GnliEq13mul*Rs*1e9))
+                SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO + GnliEq13mul*OSNRmeasBW))
+                SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS + GnliEq15mul*BchRS*1e9))
+                SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2 + GnliEq15mul2*BchRS2*1e9))   
+                OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO)
+            else:
+                #SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
+                SNRanalytical[i] = 10*np.log10((LF*Pch[i])/(Pasech[i] + GnliEq13mul[i]*Rs*1e9))
+                SNRanalyticalO[i] = 10*np.log10((LF*Pch[i])/(PasechO[i] + GnliEq13mul[i]*OSNRmeasBW))
+                SNRanalyticalRS2[i] = 10*np.log10((LF*Pch[i])/(PasechRS2[i] + GnliEq15mul2[i]*BchRS2*1e9))
+                SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
+                OSNRanalytical[i] = 10*np.log10((LF*Pch[i])/PasechO[i])
     return SNRanalytical, SNRanalyticalRS, SNRanalyticalRS2, OSNRanalytical, GnliEq13, epsilon, SNRanalyticalO
 
 
@@ -188,10 +241,7 @@ if NDFISimport:
     lossvarperc = ((NDFISlossnzvar**0.5)/NDFISlossnzmean)*100  
     lossvarpercoverall = ((NDFISlossoverallnzvar**0.5)/NDFISlossoverallnzmean)*100  
     dispvarperc = ((NDFISdispnzvar**0.5)/NDFISdispnzmean)*100 
-
-
-
-
+    
 if repairlossimport:
     # import repair loss data generated by David's implementation of J. A. Nagel,
     #“Statistical Analysis of Single-Mode Fiber Field Splice Losses,” in OFC 2009, p. JWA3.'
@@ -329,8 +379,8 @@ def spanvar(PchdBm):
     Gl = 10**(gain_target/10)
     
     for i in range(Nspans):
-        Gnlispanvar[i] = main(Lspans, Nspans, 157, 101, 201, alpha[i], Disp[i], PchdBm, NF[i], NLco)[4]
-        ep[i] = main(Lspans, Nspans, 157, 101, 201, alpha[i], Disp[i], PchdBm, NF[i], NLco)[5]
+        Gnlispanvar[i] = main(Lspans, Nspans, 157, 101, 201, alpha[i], Disp[i], PchdBm, NF[i], NLco,False)[4]
+        ep[i] = main(Lspans, Nspans, 157, 101, 201, alpha[i], Disp[i], PchdBm, NF[i], NLco,False)[5]
     Pasespanvar = NFl*h*f*(Gl - 1)*Rs*1e9
     Pasech = np.sum(Pasespanvar)
     Gnli = np.sum(Gnlispanvar,axis=0)*(Nspans**(np.mean(ep)))
@@ -383,25 +433,34 @@ snrdiffvar = snrdiffmean*0.1
 # path 1 - calculate the SNR at each node and return them 
 def NSFNETexample(path):
     p = []
+    pts = []
     pn = []
     #pase = []
     for i in range(np.size(path)):
-        p.append(main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco)[0] )
-        pn.append(main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco)[0] - snrdiffmean +  np.random.normal(snrdiffmean, snrdiffvar, numpoints))
+        p.append(main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco,False)[0] )
+        Popt = PchdBm[np.argmax(p[i])]
+        Popts = np.linspace(Popt-1.5, Popt+1.5, numpoints)
+        pts.append(main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, Popts, NF, NLco,True)[0] )
+        pn.append(main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco,False)[0] - snrdiffmean +  np.random.normal(snrdiffmean, snrdiffvar, numpoints))
+        
         #popt = (main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco)[-1])
-    path1popt = [PchdBm[np.argmax(p[i])] for i in range(np.size(p,0))]
-    return pn, path1popt, p
+    #path1popt = [PchdBm[np.argmax(p[i])] for i in range(np.size(p,0))]
+    return p,pts, Popt
 
+path1snr = NSFNETexample(path1)[1][-1]
+Popt = NSFNETexample(path1)[2]
+drawind = np.linspace(1,numpoints,numpoints)
+PchdBmopts = np.linspace(Popt-1.5, Popt+1.5, numpoints)
 
+plt.plot(PchdBmopts, path1snr, '*')
+plt.xlabel("Pch")
+plt.ylabel("SNR (dB)")
+plt.show()
 
-path1snrn = NSFNETexample(path1)[2]
-path2snrn = NSFNETexample(path2)[2]
-path3snrn = NSFNETexample(path3)[2]
-path4snrn = NSFNETexample(path4)[2]
-# optimal power calculation (minimises SNR)
-#path1snr = NSFNETexample(path1)[1][0]
-path1popt = NSFNETexample(path1)[1]
-path1snr = NSFNETexample(path1)[2]
+np.savetxt('drawind.csv', drawind, delimiter=',') 
+np.savetxt('PchdBmopts.csv', PchdBmopts, delimiter=',') 
+np.savetxt('SNRpath1.csv', path1snr, delimiter=',') 
+
 
 # BER calculation 
 M = 4
@@ -441,26 +500,30 @@ def BERfullcalc(pathsnr):
         ber[i] = [BERcalc(M, db2lin(pathsnr[i][j])) for j in range(np.size(pathsnr,1))]
     return ber
     
-path1bern = BERfullcalc(path1snrn)
-path2bern = BERfullcalc(path2snrn)
-path3bern = BERfullcalc(path3snrn)
-path4bern = BERfullcalc(path4snrn)
+#path1bern = BERfullcalc(path1snrn)
+#path2bern = BERfullcalc(path2snrn)
+#path3bern = BERfullcalc(path3snrn)
+#path4bern = BERfullcalc(path4snrn)
 
 #plt.plot(PchdBm, path1ber[-1],'*', label= 'path 1')
-plt.plot(PchdBm, path1snr[2], label= 'path 1 span 3')
-plt.plot(PchdBm, path1snr[0], label= 'path 1 span 1')
-plt.plot(PchdBm, path1snr[1], label= 'path 1 span 2')
-plt.xlabel('Pch (dBm)')
-plt.ylabel('BER')
-plt.legend()
-plt.show()
+# =============================================================================
+# plt.plot(PchdBm, path1snr[2], label= 'path 1 span 3')
+# plt.plot(PchdBm, path1snr[0], label= 'path 1 span 1')
+# plt.plot(PchdBm, path1snr[1], label= 'path 1 span 2')
+# plt.xlabel('Pch (dBm)')
+# plt.ylabel('SNR (dB)')
+# plt.legend()
+# plt.show()
+# =============================================================================
 
 #plt.plot(PchdBm, path1snr[-1], label= 'path 1')
-plt.plot(PchdBm, path1snrn[-1], label= 'path 1 noise')
-plt.xlabel('Pch (dBm)')
-plt.ylabel('SNR (dB)')
-plt.legend()
-plt.show()
+# =============================================================================
+# plt.plot(PchdBm, path1snrn[-1], label= 'path 1 noise')
+# plt.xlabel('Pch (dBm)')
+# plt.ylabel('SNR (dB)')
+# plt.legend()
+# plt.show()
+# =============================================================================
 
 #np.savetxt('PchdBm.csv', PchdBm, delimiter=',') 
 #np.savetxt('SNRpath1.csv', path1snrn[-1], delimiter=',') 
@@ -468,7 +531,7 @@ plt.show()
 
 #%% ====================================================================================
 
-GNmodelresbase = main(Lspans, Nspans, 157, 101, 201, alpha, Disp, PchdBm, NF, NLco)
+GNmodelresbase = main(Lspans, Nspans, 157, 101, 201, alpha, Disp, PchdBm, NF, NLco,False)
 #GNmodelresbase = main(100, 10, 157, 101, 201, 0.2, 16.7, 0, 6.0, 1.27)
 #GNmodelresp = main(Lspans, Nspans, 157, 101, 201, alpha, Disp, PchdBm, NF, NLco)
 #GNmodelresn = main(Lspans, Nspans, 157, 101, 201, alpha, Disp, PchdBm, NF, NLco)
@@ -574,9 +637,9 @@ if reachcalculation:
     lossreach = NDFISlossoverallnzmean
     dispreach = NDFISdispnzmean
     # =============================================================================
-    SNRNYr = main(Lspans, Nspans, 157, 101, 201, lossreach,dispreach, PchreachdBm, NF, NLco)[0]
-    SNRRSr = main(Lspans, Nspans, 157, 101, 201, lossreach, dispreach, PchreachdBm, NF, NLco)[1]
-    SNRRS2r = main(Lspans, Nspans, 157, 101, 201, lossreach, dispreach, PchreachdBm, NF, NLco)[2]
+    SNRNYr = main(Lspans, Nspans, 157, 101, 201, lossreach,dispreach, PchreachdBm, NF, NLco,False)[0]
+    SNRRSr = main(Lspans, Nspans, 157, 101, 201, lossreach, dispreach, PchreachdBm, NF, NLco,False)[1]
+    SNRRS2r = main(Lspans, Nspans, 157, 101, 201, lossreach, dispreach, PchreachdBm, NF, NLco,False)[2]
     
     
     
@@ -591,7 +654,7 @@ if reachcalculation:
            
         while BER[0] < FECthreshold:
                 
-            SNR = main(Lspans, Ns, 157, 101, 201, alpha, Disp, P, NF, NLco)[Ny]
+            SNR = main(Lspans, Ns, 157, 101, 201, alpha, Disp, P, NF, NLco,False)[Ny]
                 
             if M == 4: 
                 BER = 0.5*special.erfc(SNR**0.5)
