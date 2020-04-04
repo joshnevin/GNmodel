@@ -25,6 +25,16 @@ from NFmodelGNPy import db2lin
 #from scipy.stats import invgamma
 #from scipy.stats import gamma
 
+NDFISimport = True
+repairlossimport = True
+constellationimport = True
+reachcalculation = False
+addEDFAnoise = True
+
+gdiffmean = 0.1
+gdiffvar = gdiffmean*0.1
+
+
 numpoints = 50
 
 def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam ):
@@ -67,17 +77,9 @@ def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam ):
     ## implement multiple spans using (7) 
 
     def nthHarmonic(N) : 
-  
-        # H1 = 1  
         harmonic = 1.00
-  
-        # loop to apply the forumula  
-        # Hn = H1 + H2 + H3 ... +  
-        # Hn-1 + Hn-1 + 1/n  
         for i in range(2, N + 1) : 
             harmonic += 1 / i 
-            
-    
         return harmonic 
 
     if Ns == 1:
@@ -97,110 +99,107 @@ def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam ):
     GnliEq15mul2 = GnliEq15v2*Ns**(1+epsilonRS2)   # implementation of (7) 
  
     # ASE noise bit 
+    
     G = al*Ls
     NFl = 10**(NF/10) 
     Gl = 10**(G/10) 
     OSNRmeasBW = 12.478*1e9 # OSNR measurement BW [Hz]
     Pasech = NFl*h*f*(Gl - 1)*Rs*1e9*Ns # [W] the ASE noise power in one Nyquist channel across all spans
-    #Pasech = NFl*h*f*(Gl - 1)*OSNRmeasBW*Ns # [W] the ASE noise power in the OSNR measurement BW, defined as Dlam = 0.1nm
+    PasechO = NFl*h*f*(Gl - 1)*OSNRmeasBW*Ns # [W] the ASE noise power in the OSNR measurement BW, defined as Dlam = 0.1nm
     PasechRS = NFl*h*f*(Gl - 1)*BchRS*1e9*Ns # [W] the ASE noise power in one non-Nyquist channel across all spans
     PasechRS2 = NFl*h*f*(Gl - 1)*BchRS2*1e9*Ns
     # SNR calc + plotting 
     
-    
     SNRanalytical = np.zeros(numpoints)
+    SNRanalyticalO = np.zeros(numpoints)
     SNRanalyticalRS = np.zeros(numpoints)
     SNRanalyticalRS2 = np.zeros(numpoints)
     OSNRanalytical = np.zeros(numpoints)
+    
     
     for i in range(numpoints):
         
         if np.size(Pasech) > 1 and np.size(GnliEq13mul) > 1 and np.size(Pch)==1:
             SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech[i] + GnliEq13mul[i]*Rs*1e9))
-            #SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech[i] + GnliEq13mul[i]*OSNRmeasBW))
-            OSNRanalytical[i] = 10*np.log10((LF*Pch)/Pasech[i])
+            SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO[i] + GnliEq13mul[i]*OSNRmeasBW))
+            OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO[i])
             SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
             SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2[i] + GnliEq15mul2[i]*BchRS2*1e9))
             
         elif np.size(Pasech) > 1 and np.size(GnliEq13mul) == 1 and np.size(Pch)==1:    
             
             SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech[i] + GnliEq13mul*Rs*1e9))
-            #SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech[i] + GnliEq13mul*OSNRmeasBW))
+            SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO[i] + GnliEq13mul*OSNRmeasBW))
             SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2[i] + GnliEq15mul2*BchRS2*1e9))
             SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS[i] + GnliEq15mul*BchRS*1e9))
-            OSNRanalytical[i] = 10*np.log10((LF*Pch)/Pasech[i])
-
-        #SNRMC[i] = 10*np.log10((LF*Pch)/(Pasech[i] + GnliMC*Rs*1e9))
-        #SNRMC[i] = 10*np.log10((LF*Pch)/(Pasech[i] + GnliMC[i]*Rs*1e9))
+            OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO[i])
         
         elif np.size(Pasech) == 1 and np.size(GnliEq13mul) > 1 and np.size(Pch)==1:    
         
             SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech + GnliEq13mul[i]*Rs*1e9))
+            SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO + GnliEq13mul[i]*Rs*1e9))
             #SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech + GnliEq13mul[i]*OSNRmeasBW))
             SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS + GnliEq15mul[i]*BchRS*1e9))
             SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2 + GnliEq15mul2[i]*BchRS2*1e9))
-            OSNRanalytical[i] = 10*np.log10((LF*Pch)/Pasech)       
+            OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO)       
         
         elif np.size(Pasech) == 1 and np.size(GnliEq13mul) > 1 and np.size(Pch) > 1:    
         
             SNRanalytical[i] = 10*np.log10((LF*Pch[i])/(Pasech + GnliEq13mul[i]*Rs*1e9))
-            #SNRanalytical[i] = 10*np.log10((LF*Pch[i])/(Pasech + GnliEq13mul[i]*OSNRmeasBW))
+            SNRanalyticalO[i] = 10*np.log10((LF*Pch[i])/(PasechO + GnliEq13mul[i]*OSNRmeasBW))
             SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS + GnliEq15mul[i]*BchRS*1e9))
             SNRanalyticalRS2[i] = 10*np.log10((LF*Pch[i])/(PasechRS2 + GnliEq15mul2[i]*BchRS2*1e9))
-            OSNRanalytical[i] = 10*np.log10((LF*Pch[i])/Pasech)          
+            OSNRanalytical[i] = 10*np.log10((LF*Pch[i])/PasechO)      
+            
         elif np.size(Pasech) == 1 and np.size(GnliEq13mul) == 1 and np.size(Pch) == 1:    
         
             SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech + GnliEq13mul*Rs*1e9))
-            #SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech + GnliEq13mul*OSNRmeasBW))
+            SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO + GnliEq13mul*OSNRmeasBW))
             SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS + GnliEq15mul*BchRS*1e9))
             SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2 + GnliEq15mul2*BchRS2*1e9))   
-            OSNRanalytical[i] = 10*np.log10((LF*Pch)/Pasech)
+            OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO)
         else:
             #SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
             SNRanalytical[i] = 10*np.log10((LF*Pch[i])/(Pasech[i] + GnliEq13mul[i]*Rs*1e9))
-            SNRanalytical[i] = 10*np.log10((LF*Pch[i])/(Pasech[i] + GnliEq13mul[i]*OSNRmeasBW))
+            SNRanalyticalO[i] = 10*np.log10((LF*Pch[i])/(PasechO[i] + GnliEq13mul[i]*OSNRmeasBW))
             SNRanalyticalRS2[i] = 10*np.log10((LF*Pch[i])/(PasechRS2[i] + GnliEq15mul2[i]*BchRS2*1e9))
-            OSNRanalytical[i] = 10*np.log10((LF*Pch[i])/Pasech[i])
-    return SNRanalytical, SNRanalyticalRS, SNRanalyticalRS2, OSNRanalytical, GnliEq13, epsilon
+            SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
+            OSNRanalytical[i] = 10*np.log10((LF*Pch[i])/PasechO[i])
+    return SNRanalytical, SNRanalyticalRS, SNRanalyticalRS2, OSNRanalytical, GnliEq13, epsilon, SNRanalyticalO
 
 
 # %% ================================ NDFIS data stuff  ===========================================
+if NDFISimport:
+    NDFISdata = np.genfromtxt(open("NDFISdata.csv", "r"), delimiter=",", dtype =float)
+    NDFISdata = np.delete(NDFISdata,0,0 )
+    # extract loss and overall loss and remove links for which loss or overall loss is missing 
+    NDFISdatanozero = np.delete(NDFISdata,[16,17,20,21],0 )  
+    NDFISlossnz = NDFISdatanozero.T[2]
+    NDFISlossoverallnz = NDFISdatanozero.T[4]
+    NDFISdispnz = NDFISdatanozero.T[6]
+    # calculate mean and variance 
+    NDFISlossnzmean = np.mean(NDFISlossnz)
+    NDFISlossoverallnzmean = np.mean(NDFISlossoverallnz)
+    NDFISdispnzmean = np.mean(NDFISdispnz)
+    NDFISlossnzvar = np.var(NDFISlossnz)
+    NDFISlossoverallnzvar = np.var(NDFISlossoverallnz)
+    NDFISdispnzvar = np.var(NDFISdispnz)
+    # work out standard deviation = sqrt(variance) as a % of the mean 
+    lossvarperc = ((NDFISlossnzvar**0.5)/NDFISlossnzmean)*100  
+    lossvarpercoverall = ((NDFISlossoverallnzvar**0.5)/NDFISlossoverallnzmean)*100  
+    dispvarperc = ((NDFISdispnzvar**0.5)/NDFISdispnzmean)*100 
 
-NDFISdata = np.genfromtxt(open("NDFISdata.csv", "r"), delimiter=",", dtype =float)
-NDFISdata = np.delete(NDFISdata,0,0 )
-# extract loss and overall loss 
-NDFISloss = NDFISdata.T[2]
-NDFISlossoverall = NDFISdata.T[4]
-NDFISdisp = NDFISdata.T[6]
-# remove links for which loss or overall loss is missing 
-NDFISdatanozero = np.delete(NDFISdata,[16,17,20,21],0 )  
-NDFISlossnz = NDFISdatanozero.T[2]
-NDFISlossoverallnz = NDFISdatanozero.T[4]
-NDFISdispnz = NDFISdatanozero.T[6]
-# calculate mean and variance 
-NDFISlossnzmean = np.mean(NDFISlossnz)
-NDFISlossoverallnzmean = np.mean(NDFISlossoverallnz)
-NDFISdispnzmean = np.mean(NDFISdispnz)
-NDFISlossnzvar = np.var(NDFISlossnz)
-NDFISlossoverallnzvar = np.var(NDFISlossoverallnz)
-NDFISdispnzvar = np.var(NDFISdispnz)
-# work out standard deviation = sqrt(variance) as a % of the mean 
-lossvarperc = ((NDFISlossnzvar**0.5)/NDFISlossnzmean)*100  
-lossvarpercoverall = ((NDFISlossoverallnzvar**0.5)/NDFISlossoverallnzmean)*100  
-dispvarperc = ((NDFISdispnzvar**0.5)/NDFISdispnzmean)*100  
+
+
+
+if repairlossimport:
+    # import repair loss data generated by David's implementation of J. A. Nagel,
+    #“Statistical Analysis of Single-Mode Fiber Field Splice Losses,” in OFC 2009, p. JWA3.'
+    repairlossdata = np.genfromtxt(open("Astotal.csv", "r"), delimiter=",", dtype =float)
+    nbinsrep = int(np.genfromtxt(open("Astotalnbins.csv", "r"), delimiter=",", dtype =float))
+    countsrep, binsrep = np.histogram(repairlossdata, nbinsrep)
 
 # %% ======================== NDFIS loss fitting stuff ======================== 
-# =============================================================================
-# plt.plot(NDFISlossnz ,'*' , label = 'fibre' )
-# plt.plot(NDFISlossoverallnz , '+', label = 'overall' )
-# plt.legend()
-# plt.ylabel('losses (dB/km) ')
-# #plt.xlabel(' ')
-# plt.title('NDFIS losses')
-# plt.grid()
-# #plt.savefig('reachvspch64qam.png', dpi=200)
-# plt.show()
-# =============================================================================
 
 # find bin width from Friedman-Diaconis rule 
 # =============================================================================
@@ -216,7 +215,7 @@ dispvarperc = ((NDFISdispnzvar**0.5)/NDFISdispnzmean)*100
 #countso, binso = np.histogram(NDFISlossoverallnz, Binnumo)
 counts, bins = np.histogram(NDFISlossnz, 20)
 countso, binso = np.histogram(NDFISlossoverallnz, 20)
-
+countsd, binsd = np.histogram(NDFISdispnz, 20)
 # =============================================================================
 #plt.hist(bins[:-1], bins, weights=counts)
 #plt.xlabel("loss (dB/km)")
@@ -226,17 +225,6 @@ countso, binso = np.histogram(NDFISlossoverallnz, 20)
 #plt.show()
 # =============================================================================
 
-# =============================================================================
-#plt.hist(binso[:-1], binso, weights=countso)
-#plt.xlabel("loss (dB/km)")
-#plt.ylabel("freqeuncy")
-#plt.title("overall loss")
-#plt.savefig('NDFISoveralllosshist20.png', dpi=200)
-#plt.show()
-# =============================================================================
-
-#plt.hist(NDFISlossnz,bins = 15)
-#plt.show()
 # how to reconstruct histogram 
 
 # =============================================================================
@@ -253,74 +241,6 @@ countso, binso = np.histogram(NDFISlossoverallnz, 20)
 # plt.show()
 # =============================================================================
 
-Nbins = np.zeros(np.size(bins))
-Nbins[0] = bins[0] - (bins[1] - bins[0]) 
-for i in range(0, (np.size(bins)-1),1 ):
-    Nbins[i+1] = (bins[i+1] + bins[i])/2
-Ncounts = [0] + [i for i in counts]
-# =============================================================================
-# polfit = np.polyfit(Nbins,Ncounts,4)
-# p = np.poly1d(polfit)
-# xp = np.linspace(0.186, 0.272, 100)
-# plt.plot(Nbins, Ncounts, '*')
-# plt.plot(xp, p(xp))
-# plt.grid()
-# plt.xlabel("loss (dB/km)")
-# plt.ylabel("freqeuncy")
-# plt.title("order 4")
-# plt.savefig('NDFISlossfreqdenpol6FD.png', dpi=200)
-# plt.show()
-# =============================================================================
-Nbinso = np.zeros(np.size(binso))
-Nbinso[0] = binso[0] - (binso[1] - binso[0]) 
-for i in range(0, (np.size(binso)-1),1 ):
-    Nbinso[i+1] = (binso[i+1] + binso[i])/2
-Ncountso = [0] + [i for i in countso]
-# =============================================================================
-# polfito = np.polyfit(Nbinso,Ncountso,12)
-# po = np.poly1d(polfito)
-# xpo = np.linspace(0.148, 0.429, 100)
-# plt.plot(Nbinso, Ncountso, '*')
-# plt.plot(xpo, po(xp))
-# plt.grid()
-# plt.xlabel("loss (dB/km)")
-# plt.ylabel("freqeuncy")
-# plt.title("order 12")
-# plt.savefig('NDFISlossfreqdenpol12overallFD.png', dpi=200)
-# plt.show()
-# =============================================================================
-
-# %% fit a GPR model to the loss-frequency data 
-
-# =============================================================================
-# kernel = 1.0**2 * RBF(length_scale=0.1)
-# gpr = GaussianProcessRegressor(kernel=kernel, alpha=0.5, normalize_y=True, n_restarts_optimizer=10)
-# gpr.fit(Nbins.reshape(-1,1), Ncounts)
-# yGP = gpr.predict(xp.reshape(-1,1))
-# 
-# plt.plot(xp,yGP)
-# plt.plot(Nbins, Ncounts, '*')
-# plt.grid()
-# plt.xlabel("loss (dB/km)")
-# plt.ylabel("freqeuncy")
-# plt.title("noise = 0.5")
-# plt.savefig('GPRfitnoise05FD.png', dpi=200)
-# plt.show() 
-#  
-# kernelo = 1.0**2 * RBF(length_scale=0.1)
-# gpro = GaussianProcessRegressor(kernel=kernelo, alpha=0.5, normalize_y=True, n_restarts_optimizer=10)
-# gpro.fit(Nbinso.reshape(-1,1), Ncountso)
-# yGPo = gpro.predict(xpo.reshape(-1,1))
-# 
-# plt.plot(xpo,yGPo)
-# plt.plot(Nbinso, Ncountso, '*')
-# plt.grid()
-# plt.xlabel("loss (dB/km)")
-# plt.ylabel("freqeuncy")
-# plt.title("noise = 0.5")
-# plt.savefig('GPRfitnoise05FDoverall.png', dpi=200)
-# plt.show() 
-# =============================================================================
 
 # %% random draws from histogram 
 
@@ -331,6 +251,14 @@ for i in range(np.size(countsnorm)):
 countsnormo = np.zeros(np.size(countso))
 for i in range(np.size(countsnormo)):
     countsnormo[i] = countso[i]/np.sum(countso)
+    
+countsnormd = np.zeros(np.size(countsd))
+for i in range(np.size(countsnormd)):
+    countsnormd[i] = countsd[i]/np.sum(countsd)
+    
+countsnormrep = np.zeros(np.size(countsrep))
+for i in range(np.size(countsnormrep)):
+    countsnormrep[i] = countsrep[i]/np.sum(countsrep)
 
 def histdraw(counts, bins):
     np.random.seed()
@@ -343,29 +271,28 @@ def histdraw(counts, bins):
             break
     return drawnum
 
+
 # %%  ================================ set params and call main ================================
 
 #dev = 1  # % deviation from baseline 
 PchdBm = np.linspace(-10, 10, num = numpoints, dtype =float) 
 #PchdBm = 0
 #alpha = 0.25
-#varperc = lossvarperc  # percentage variance from mean of Gaussian 
-#alphamean = NDFISlossnzmean  # Gaussian mean 
-#alpha = np.random.normal(alphamean, alphamean*varperc*0.01, numpoints)
-#alpha = np.random.normal(NDFISlossoverallnzmean, NDFISlossoverallnzvar**0.5, numpoints)
+Nspans = 1
+Lspans = 100
+num_breaks = 1 # set the number of fibre breaks
+num_years = (num_breaks*374)/(Nspans*Lspans) # expected number of years for this number of fibre breaks given a rate of 1 break/374km/year
 #alpha = NDFISlossnzmean
-alpha = NDFISlossnzmean
+alpha = 0.2
 #alpha = np.zeros(numpoints)
 #for i in range(numpoints):
 #    alpha[i] = histdraw(countsnorm, bins)
 #alpha = NDFISlossnzmean
 #Disp = np.random.normal(NDFISdispnzmean, NDFISdispnzvar**0.5, numpoints)
 NLco = 1.27
-Nspans = 1
-Lspans = 100
 NchRS = 101
-Disp = NDFISdispnzmean
-#Disp = 16.7
+#Disp = NDFISdispnzmean
+Disp = 16.7
 gain_target = alpha*Lspans
 gain_max = 26  # operator model example from GNPy - see eqpt_config.json 
 gain_min = 15
@@ -379,13 +306,11 @@ g1min = nf_model(gain_min,gain_max,nf_min,nf_max )[4]
 g1a = gain_target - deltap - (gain_max - gain_target)
 NF = lin2db(db2lin(nf1) + db2lin(nf2)/db2lin(g1a))  
 #NF = 4.5
-
-
 # =========================== differing spans bit ==================================
 
 def spanvar(PchdBm):
     alpha = np.zeros(Nspans)
-    #Disp = np.zeros(Nspans)
+    Disp = np.zeros(Nspans)
     ep = np.zeros(Nspans)
     gain_target = np.zeros(Nspans)
     Gnlispanvar = np.zeros((Nspans,numpoints))
@@ -395,7 +320,8 @@ def spanvar(PchdBm):
     f = 299792458/(lam*1e-9) # operating frequency [Hz]
     h = 6.63*1e-34  # Planck's constant [Js] 
     for i in range(Nspans):  # draw the span loss from a distribution 
-        alpha[i] = histdraw(countsnorm, bins)
+        alpha[i] = histdraw(countsnorm, bins) # + histdraw(countsnormrep, binsrep)
+        Disp[i] = histdraw(countsnormd, binsd)
     gain_target = alpha*Lspans 
     g1a = gain_target - deltap*np.ones(Nspans) - (gain_max*np.ones(Nspans) - gain_target)
     NF = lin2db(db2lin(nf1) + db2lin(nf2)/db2lin(g1a)) 
@@ -403,16 +329,15 @@ def spanvar(PchdBm):
     Gl = 10**(gain_target/10)
     
     for i in range(Nspans):
-        Gnlispanvar[i] = main(Lspans, Nspans, 157, 101, 201, alpha[i], Disp, PchdBm, NF[i], NLco)[4]
-        ep[i] = main(Lspans, Nspans, 157, 101, 201, alpha[i], Disp, PchdBm, NF[i], NLco)[5]
-    
+        Gnlispanvar[i] = main(Lspans, Nspans, 157, 101, 201, alpha[i], Disp[i], PchdBm, NF[i], NLco)[4]
+        ep[i] = main(Lspans, Nspans, 157, 101, 201, alpha[i], Disp[i], PchdBm, NF[i], NLco)[5]
     Pasespanvar = NFl*h*f*(Gl - 1)*Rs*1e9
     Pasech = np.sum(Pasespanvar)
     Gnli = np.sum(Gnlispanvar,axis=0)*(Nspans**(np.mean(ep)))
     Pch = 1e-3*10**(PchdBm/10)  # ^ [W]
     return 10*np.log10((Pch)/(Pasech + Gnli*Rs*1e9))
 
-numsweeps = 100
+numsweeps = 20
 SNRdataset = []
 for _ in range(numsweeps):
     SNRdataset = np.append(SNRdataset,spanvar(PchdBm))
@@ -422,85 +347,124 @@ for _ in range(numsweeps):
     PchdBmrs.append(PchdBm)
 PchdBmrs = np.reshape(PchdBmrs,numpoints*numsweeps)
 
-SNRtest1 = spanvar(PchdBm)
-SNRtest2 = spanvar(PchdBm)
-SNRtest3 = spanvar(PchdBm)
-SNRtest4 = spanvar(PchdBm)
+#SNRtest1 = spanvar(PchdBm)
+#SNRtest2 = spanvar(PchdBm)
+#SNRtest3 = spanvar(PchdBm)
+#SNRtest4 = spanvar(PchdBm)
 
-plt.plot(PchdBm, SNRtest1, label = 'draw one')
-plt.plot(PchdBm, SNRtest2, label = 'draw two')
-plt.plot(PchdBm, SNRtest3, label = 'draw three') 
-plt.plot(PchdBm, SNRtest4, label = 'draw four') 
-plt.ylabel('SNR (dB)')
-plt.xlabel('Pch (dBm)')
-plt.legend()
-plt.title('SNR vs Pch for NDFIS loss')
-#plt.grid()
-#plt.savefig('SNRvspch10spans.pdf', dpi=200)
-plt.show() 
-
-
-plt.plot(PchdBmrs, SNRdataset,'*', label = 'draw one')
-plt.ylabel('SNR (dB)')
-plt.xlabel('Pch (dBm)')
-plt.legend()
-plt.title('SNR vs Pch for NDFIS loss')
-#plt.grid()
-#plt.savefig('SNRvspch10spans.pdf', dpi=200)
-plt.show() 
-
-np.savetxt('SNRvspch1span.csv', SNRdataset, delimiter=',') 
-np.savetxt('PchdBmrs.csv', PchdBmrs, delimiter=',') 
-
-
-
-# %%
-
-numpointsdg = 100
-#PchdBmdata = np.random.uniform(-10,10, numpointsdg)
-
-#start_time = time.time()
-#def datagenpar(Pch):
-#    with multiprocessing.Pool() as pool:
-#        SNR = pool.map(spanvar, Pch) 
-#    return SNR
-# =============================================================================
-# numsweeps = 1
-# SNRdataset = []
-# for _ in range(numsweeps):
-#     #SNRdataset.append(datagenpar(PchdBmdata))
-#     for j in range(np.size(PchdBmdata)):
-#         SNRdataset.append(spanvar(PchdBmdata[j]))
-# SNRdatasetrs = np.reshape(SNRdataset,numpointsdg*numsweeps)
-# PchdBmrs = []
-# for _ in range(numsweeps):
-#     PchdBmrs.append(PchdBmdata)
-# PchdBmrs = np.reshape(PchdBmrs,numpointsdg*numsweeps)
-# 
-# duration = time.time() - start_time
-# print("SNR dataset calculation duration: " + str(duration))
-# =============================================================================
- 
-#%% =============================================================================
-#plt.plot(PchdBmdata,SNRdataset[0],'*', label= 'sweep 1')
-#plt.plot(PchdBmdata,SNRdataset[1],'o', label= 'sweep 2')
-#plt.plot(PchdBmdata,SNRdataset[2],'^', label= 'sweep 3')
-#plt.plot(PchdBmdata,SNRdataset[3],'.', label= 'sweep 4')
-#plt.plot(PchdBmdata,SNRdataset[4],'>', label= 'sweep 5')
 
 # =============================================================================
-
-# =============================================================================
-# plt.plot(PchdBmdata,SNRdataset[0],'*', label= 'SNR Dataset')
+# plt.plot(PchdBmrs, SNRdataset,'*', label = 'draw one')
 # plt.ylabel('SNR (dB)')
 # plt.xlabel('Pch (dBm)')
 # plt.legend()
 # plt.title('SNR vs Pch for NDFIS loss')
-# plt.grid()
-# plt.savefig('SNRvspchsweep0.pdf', dpi=200)
-# plt.show()
+# #plt.grid()
+# #plt.savefig('SNRvspch10spans.pdf', dpi=200)
+# plt.show() 
 # =============================================================================
 
+#np.savetxt('SNRvspch1span.csv', SNRdataset, delimiter=',') 
+#np.savetxt('PchdBmrs.csv', PchdBmrs, delimiter=',') 
+
+# NSFNET implementation 
+path1 = [3000,3600,2100]
+path2 = [2100,1200,3600,2100]
+path3 = [4800,1500,1500]
+path4 = [4800,1500,2700]
+
+np.random.seed(101)
+
+snrdiffmean = 5.0
+snrdiffvar = snrdiffmean*0.1
+
+
+
+# path 1 - calculate the SNR at each node and return them 
+def NSFNETexample(path):
+    p = []
+    pn = []
+    #pase = []
+    for i in range(np.size(path)):
+        p.append(main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco)[0] )
+        pn.append(main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco)[0] - snrdiffmean +  np.random.normal(snrdiffmean, snrdiffvar, numpoints))
+        #popt = (main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco)[-1])
+    path1popt = [PchdBm[np.argmax(p[i])] for i in range(np.size(p,0))]
+    return pn, path1popt, p
+
+
+
+path1snrn = NSFNETexample(path1)[2]
+path2snrn = NSFNETexample(path2)[2]
+path3snrn = NSFNETexample(path3)[2]
+path4snrn = NSFNETexample(path4)[2]
+# optimal power calculation (minimises SNR)
+#path1snr = NSFNETexample(path1)[1][0]
+path1popt = NSFNETexample(path1)[1]
+path1snr = NSFNETexample(path1)[2]
+
+# BER calculation 
+M = 4
+def BERcalc(M, SNR):
+    if M == 4: 
+        BER = 0.5*special.erfc(SNR**0.5)
+        #BERrs = 0.5*special.erfc(SNRRSr**0.5)
+        #BERrs2 = 0.5*special.erfc(SNRRS2r**0.5)
+         
+    elif M == 16:
+        BER = (3/8)*special.erfc(((2/5)*SNR)**0.5) + (1/4)*special.erfc(((18/5)*SNR)**0.5) - (1/8)*special.erfc((10*SNR)**0.5)
+        #BERrs = (3/8)*special.erfc(((2/5)*SNRRSr)**0.5) + (1/4)*special.erfc(((18/5)*SNRRSr)**0.5) - (1/8)*special.erfc((10*SNRRSr)**0.5)
+        #BERrs2 = (3/8)*special.erfc(((2/5)*SNRRS2r)**0.5) + (1/4)*special.erfc(((18/5)*SNRRS2r)**0.5) - (1/8)*special.erfc((10*SNRRS2r)**0.5)
+         
+    elif M == 64:
+        BER = (7/24)*special.erfc(((1/7)*SNR)**0.5) + (1/4)*special.erfc(((9/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) + (1/24)*special.erfc(((81/7)*SNR)**0.5) - (1/24)*special.erfc(((169/7)*SNR)**0.5) 
+        #BERrs = (7/24)*special.erfc(((1/7)*SNRRSr)**0.5) + (1/4)*special.erfc(((9/7)*SNRRSr)**0.5) - (1/24)*special.erfc(((25/7)*SNRRSr)**0.5) - (1/24)*special.erfc(((25/7)*SNRRSr)**0.5) + (1/24)*special.erfc(((81/7)*SNRRSr)**0.5) - (1/24)*special.erfc(((169/7)*SNRRSr)**0.5) 
+        #BERrs2 = (7/24)*special.erfc(((1/7)*SNRRS2r)**0.5) + (1/4)*special.erfc(((9/7)*SNRRS2r)**0.5) - (1/24)*special.erfc(((25/7)*SNRRS2r)**0.5) - (1/24)*special.erfc(((25/7)*SNRRS2r)**0.5) + (1/24)*special.erfc(((81/7)*SNRRS2r)**0.5) - (1/24)*special.erfc(((169/7)*SNRRS2r)**0.5) 
+    return BER
+
+
+# check peak BER for each node - must be below FEC threshold 
+def BERcheck(pathsnr):
+    snrmax = [np.amax(pathsnr[i]) for i in range(np.size(pathsnr,0))]
+    pathber = []
+    FECthreshold = 2e-2
+    for i in range(np.size(snrmax)):
+        pathber.append(BERcalc(M, snrmax[i]))
+    errorlinks = [pathber.index(ber) for ber in pathber if ber > FECthreshold]
+    if len(errorlinks) > 0:
+        print("FECthreshold exceeded" )
+    return pathber, errorlinks
+
+def BERfullcalc(pathsnr):
+    ber = np.zeros((np.size(pathsnr,0),np.size(pathsnr,1)))
+    for i in range(np.size(pathsnr,0)):
+        ber[i] = [BERcalc(M, db2lin(pathsnr[i][j])) for j in range(np.size(pathsnr,1))]
+    return ber
+    
+path1bern = BERfullcalc(path1snrn)
+path2bern = BERfullcalc(path2snrn)
+path3bern = BERfullcalc(path3snrn)
+path4bern = BERfullcalc(path4snrn)
+
+#plt.plot(PchdBm, path1ber[-1],'*', label= 'path 1')
+plt.plot(PchdBm, path1snr[2], label= 'path 1 span 3')
+plt.plot(PchdBm, path1snr[0], label= 'path 1 span 1')
+plt.plot(PchdBm, path1snr[1], label= 'path 1 span 2')
+plt.xlabel('Pch (dBm)')
+plt.ylabel('BER')
+plt.legend()
+plt.show()
+
+#plt.plot(PchdBm, path1snr[-1], label= 'path 1')
+plt.plot(PchdBm, path1snrn[-1], label= 'path 1 noise')
+plt.xlabel('Pch (dBm)')
+plt.ylabel('SNR (dB)')
+plt.legend()
+plt.show()
+
+#np.savetxt('PchdBm.csv', PchdBm, delimiter=',') 
+#np.savetxt('SNRpath1.csv', path1snrn[-1], delimiter=',') 
+#np.savetxt('BERpath1.csv', path1bern[-1], delimiter=',') 
 
 #%% ====================================================================================
 
@@ -513,41 +477,30 @@ SNRanalyticalbase = GNmodelresbase[0]
 SNRanalyticalRSbase = GNmodelresbase[1]
 SNRanalyticalRS2base = GNmodelresbase[2]
 OSNRanalytical = GNmodelresbase[3]
-
-#SNRanalyticalp = GNmodelresp[0]
-#SNRanalyticalRSp = GNmodelresp[1]
-#SNRanalyticalRS2p = GNmodelresp[2]
-#SNRanalyticaln = GNmodelresn[0]
-#SNRanalyticalRSn = GNmodelresn[1]
-#SNRanalyticalRS2n = GNmodelresn[2]
+SNRanalyticalO = GNmodelresbase[6]
 
 numdraws = np.linspace(0,numpoints-1, numpoints)
-
-
-
-
 
 # %% ================================ Mutual information estimation ===========================================
   
 # import constellation shapes from MATLAB-generated csv files 
+if constellationimport:  
+    Qam4r = np.genfromtxt(open("qam4r.csv", "r"), delimiter=",", dtype =float)
+    Qam4i = np.genfromtxt(open("qam4i.csv", "r"), delimiter=",", dtype =float)
+    Qam16r = np.genfromtxt(open("qam16r.csv", "r"), delimiter=",", dtype =float)
+    Qam16i = np.genfromtxt(open("qam16i.csv", "r"), delimiter=",", dtype =float)
+    Qam32r = np.genfromtxt(open("qam32r.csv", "r"), delimiter=",", dtype =float)
+    Qam32i = np.genfromtxt(open("qam32i.csv", "r"), delimiter=",", dtype =float)
+    Qam64r = np.genfromtxt(open("qam64r.csv", "r"), delimiter=",", dtype =float)
+    Qam64i = np.genfromtxt(open("qam64i.csv", "r"), delimiter=",", dtype =float)
+    Qam128r = np.genfromtxt(open("qam128r.csv", "r"), delimiter=",", dtype =float)
+    Qam128i = np.genfromtxt(open("qam128i.csv", "r"), delimiter=",", dtype =float)
     
-Qam4r = np.genfromtxt(open("qam4r.csv", "r"), delimiter=",", dtype =float)
-Qam4i = np.genfromtxt(open("qam4i.csv", "r"), delimiter=",", dtype =float)
-Qam16r = np.genfromtxt(open("qam16r.csv", "r"), delimiter=",", dtype =float)
-Qam16i = np.genfromtxt(open("qam16i.csv", "r"), delimiter=",", dtype =float)
-Qam32r = np.genfromtxt(open("qam32r.csv", "r"), delimiter=",", dtype =float)
-Qam32i = np.genfromtxt(open("qam32i.csv", "r"), delimiter=",", dtype =float)
-Qam64r = np.genfromtxt(open("qam64r.csv", "r"), delimiter=",", dtype =float)
-Qam64i = np.genfromtxt(open("qam64i.csv", "r"), delimiter=",", dtype =float)
-Qam128r = np.genfromtxt(open("qam128r.csv", "r"), delimiter=",", dtype =float)
-Qam128i = np.genfromtxt(open("qam128i.csv", "r"), delimiter=",", dtype =float)
-
-Qam4 = Qam4r + 1j*Qam4i
-Qam16 = Qam16r + 1j*Qam16i
-Qam32 = Qam32r + 1j*Qam32i
-Qam64 = Qam64r + 1j*Qam64i
-Qam128 = Qam128r + 1j*Qam128i
-
+    Qam4 = Qam4r + 1j*Qam4i
+    Qam16 = Qam16r + 1j*Qam16i
+    Qam32 = Qam32r + 1j*Qam32i
+    Qam64 = Qam64r + 1j*Qam64i
+    Qam128 = Qam128r + 1j*Qam128i
 
 # %% ================================ Estimate MI ================================ 
 # set modulation format order and number of terms used in Gauss-Hermite quadrature
@@ -614,73 +567,59 @@ duration = time.time() - start_time
 print("MI calculation duration: " + str(duration))
 
 # %% ================================== Reach calculation ==================================
-
+if reachcalculation:
 # find the BER from: On the Bit Error Probability of QAM Modulation - Michael P. Fitz 
 
-PchreachdBm = np.linspace(-5,5,numpoints)
-lossreach = NDFISlossoverallnzmean
-dispreach = NDFISdispnzmean
-# =============================================================================
-SNRNYr = main(Lspans, Nspans, 157, 101, 201, lossreach,dispreach, PchreachdBm, NF, NLco)[0]
-SNRRSr = main(Lspans, Nspans, 157, 101, 201, lossreach, dispreach, PchreachdBm, NF, NLco)[1]
-SNRRS2r = main(Lspans, Nspans, 157, 101, 201, lossreach, dispreach, PchreachdBm, NF, NLco)[2]
-
-# BER calculation 
-M = 16
-if M == 4: 
-    BERny = 0.5*special.erfc(SNRNYr**0.5)
-    BERrs = 0.5*special.erfc(SNRRSr**0.5)
-    BERrs2 = 0.5*special.erfc(SNRRS2r**0.5)
-     
-elif M == 16:
-    BERny = (3/8)*special.erfc(((2/5)*SNRNYr)**0.5) + (1/4)*special.erfc(((18/5)*SNRNYr)**0.5) - (1/8)*special.erfc((10*SNRNYr)**0.5)
-    BERrs = (3/8)*special.erfc(((2/5)*SNRRSr)**0.5) + (1/4)*special.erfc(((18/5)*SNRRSr)**0.5) - (1/8)*special.erfc((10*SNRRSr)**0.5)
-    BERrs2 = (3/8)*special.erfc(((2/5)*SNRRS2r)**0.5) + (1/4)*special.erfc(((18/5)*SNRRS2r)**0.5) - (1/8)*special.erfc((10*SNRRS2r)**0.5)
-     
-elif M == 64:
-    BERny = (7/24)*special.erfc(((1/7)*SNRNYr)**0.5) + (1/4)*special.erfc(((9/7)*SNRNYr)**0.5) - (1/24)*special.erfc(((25/7)*SNRNYr)**0.5) - (1/24)*special.erfc(((25/7)*SNRNYr)**0.5) + (1/24)*special.erfc(((81/7)*SNRNYr)**0.5) - (1/24)*special.erfc(((169/7)*SNRNYr)**0.5) 
-    BERrs = (7/24)*special.erfc(((1/7)*SNRRSr)**0.5) + (1/4)*special.erfc(((9/7)*SNRRSr)**0.5) - (1/24)*special.erfc(((25/7)*SNRRSr)**0.5) - (1/24)*special.erfc(((25/7)*SNRRSr)**0.5) + (1/24)*special.erfc(((81/7)*SNRRSr)**0.5) - (1/24)*special.erfc(((169/7)*SNRRSr)**0.5) 
-    BERrs2 = (7/24)*special.erfc(((1/7)*SNRRS2r)**0.5) + (1/4)*special.erfc(((9/7)*SNRRS2r)**0.5) - (1/24)*special.erfc(((25/7)*SNRRS2r)**0.5) - (1/24)*special.erfc(((25/7)*SNRRS2r)**0.5) + (1/24)*special.erfc(((81/7)*SNRRS2r)**0.5) - (1/24)*special.erfc(((169/7)*SNRRS2r)**0.5) 
-# %% =============================================================================
-# find the reach from BER
-
-# Ny = 0 for Nyquist, 1 for RS and 2 for RS2
-def reachcalc(Ny, P):
-    FECthreshold = 2e-2
-    BER = np.zeros(numpoints)
-    Ns = 2 # start at 2 spans because of the denominator of (22) in Poggiolini's GN model paper - divide by ln(Ns) = 0 for Ns = 1
-       
-    while BER[0] < FECthreshold:
-            
-        SNR = main(Lspans, Ns, 157, 101, 201, NDFISlossoverallnzmean, NDFISdispnzmean, P, NF, NLco)[Ny]
-            
-        if M == 4: 
-            BER = 0.5*special.erfc(SNR**0.5)
+    PchreachdBm = np.linspace(-5,5,numpoints)
+    lossreach = NDFISlossoverallnzmean
+    dispreach = NDFISdispnzmean
+    # =============================================================================
+    SNRNYr = main(Lspans, Nspans, 157, 101, 201, lossreach,dispreach, PchreachdBm, NF, NLco)[0]
+    SNRRSr = main(Lspans, Nspans, 157, 101, 201, lossreach, dispreach, PchreachdBm, NF, NLco)[1]
+    SNRRS2r = main(Lspans, Nspans, 157, 101, 201, lossreach, dispreach, PchreachdBm, NF, NLco)[2]
+    
+    
+    
+    # %% =============================================================================
+    # find the reach from BER
+    
+    # Ny = 0 for Nyquist, 1 for RS and 2 for RS2
+    def reachcalc(Ny, P):
+        FECthreshold = 2e-2
+        BER = np.zeros(numpoints)
+        Ns = 2 # start at 2 spans because of the denominator of (22) in Poggiolini's GN model paper - divide by ln(Ns) = 0 for Ns = 1
+           
+        while BER[0] < FECthreshold:
                 
-        elif M == 16:
-            BER = (3/8)*special.erfc(((2/5)*SNR)**0.5) + (1/4)*special.erfc(((18/5)*SNR)**0.5) - (1/8)*special.erfc((10*SNR)**0.5)
+            SNR = main(Lspans, Ns, 157, 101, 201, alpha, Disp, P, NF, NLco)[Ny]
                 
-        elif M == 64:
-            BER = (7/24)*special.erfc(((1/7)*SNR)**0.5) + (1/4)*special.erfc(((9/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) + (1/24)*special.erfc(((81/7)*SNR)**0.5) - (1/24)*special.erfc(((169/7)*SNR)**0.5)     
-        else:
-            print("unrecognised modulation format")    
-        Ns = Ns + 1
-    return Ns
-
-reachNy = np.zeros(numpoints)
-reachRS = np.zeros(numpoints)
-reachRS2 = np.zeros(numpoints)
-for i in range(np.size(PchreachdBm)): 
-    reachNy[i] = reachcalc(0, PchreachdBm[i])
-    reachRS[i] = reachcalc(1, PchreachdBm[i])
-    reachRS2[i] = reachcalc(2, PchreachdBm[i])
+            if M == 4: 
+                BER = 0.5*special.erfc(SNR**0.5)
+                    
+            elif M == 16:
+                BER = (3/8)*special.erfc(((2/5)*SNR)**0.5) + (1/4)*special.erfc(((18/5)*SNR)**0.5) - (1/8)*special.erfc((10*SNR)**0.5)
+                    
+            elif M == 64:
+                BER = (7/24)*special.erfc(((1/7)*SNR)**0.5) + (1/4)*special.erfc(((9/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) + (1/24)*special.erfc(((81/7)*SNR)**0.5) - (1/24)*special.erfc(((169/7)*SNR)**0.5)     
+            else:
+                print("unrecognised modulation format")    
+            Ns = Ns + 1
+        return Ns
+    
+    reachNy = np.zeros(numpoints)
+    reachRS = np.zeros(numpoints)
+    reachRS2 = np.zeros(numpoints)
+    for i in range(np.size(PchreachdBm)): 
+        reachNy[i] = reachcalc(0, PchreachdBm[i])
+        reachRS[i] = reachcalc(1, PchreachdBm[i])
+        reachRS2[i] = reachcalc(2, PchreachdBm[i])
 #        SNRRS = main(Lspans, Nspans, 157, 101, 201, NDFISlossoverallnzmean, NDFISdispnzmean, PchdBm, NF, NLco)[1]
 #        SNRRS2 = main(Lspans, Nspans, 157, 101, 201, NDFISlossoverallnzmean, NDFISdispnzmean, PchdBm, NF, NLco)[2]
     
 # %% ================================== plotting =================================
 
-GNPysnr = np.genfromtxt(open("SNRGNPyvargainsysmar0ch2.csv", "r"), delimiter=",", dtype =float)
-GNPyosnr = np.genfromtxt(open("OSNRGNPyvargainsysmar0ch2.csv", "r"), delimiter=",", dtype =float)
+GNPysnr = np.genfromtxt(open("SNRGNPy.csv", "r"), delimiter=",", dtype =float)
+GNPyosnr = np.genfromtxt(open("OSNRGNPy.csv", "r"), delimiter=",", dtype =float)
 
 
 # =============================================================================
@@ -728,10 +667,8 @@ GNPyosnr = np.genfromtxt(open("OSNRGNPyvargainsysmar0ch2.csv", "r"), delimiter="
 
 
 # =============================================================================
-# 
-# =============================================================================
-# plt.plot(PchdBm, SNRanalyticalbase, label = 'Nyquist')
-# #plt.plot(PchdBm,GNPysnr, label='GNPy')
+# plt.plot(PchdBm, SNRanalyticalO, label = 'Nyquist')
+# plt.plot(PchdBm,GNPysnr, label='GNPy')
 # plt.legend()
 # plt.ylabel('SNR (dB)')
 # #plt.xlabel('loss coefficient (dB/km)')
@@ -740,27 +677,23 @@ GNPyosnr = np.genfromtxt(open("OSNRGNPyvargainsysmar0ch2.csv", "r"), delimiter="
 # #plt.xlabel('Draw index')
 # # #plt.xlabel('dispersion (ps/nm*km)')
 # plt.title('SNR vs Pch 0.1 nm variable gain 2 channels')
-# plt.grid()
+# #plt.grid()
 # #plt.savefig('JoshvsGNPyvariablegain2ch.png', dpi=200)
 # plt.show()
-# 
+# # 
 # plt.plot(PchdBm, OSNRanalytical, label = 'Josh')
-# #plt.plot(PchdBm,GNPyosnr, label='GNPy')
+# plt.plot(PchdBm,GNPyosnr, label='GNPy')
 # plt.legend()
 # plt.ylabel('OSNR (dB)')
 # #plt.xlabel('loss coefficient (dB/km)')
-# #plt.xlabel('EDFA NF (dB)')
+# # #plt.xlabel('EDFA NF (dB)')
 # plt.xlabel('Pch (dBm)')
-# #plt.xlabel('Draw index')
-# # #plt.xlabel('dispersion (ps/nm*km)')
+# # #plt.xlabel('Draw index')
+# # # #plt.xlabel('dispersion (ps/nm*km)')
 # plt.title('OSNR vs Pch 0.1 nm variable gain 2 channels')
-# plt.grid()
-# #plt.savefig('JoshvsGNPyvariablegainOSNR2ch.png', dpi=200)
+# #plt.grid()
+# # #plt.savefig('JoshvsGNPyvariablegainOSNR2ch.png', dpi=200)
 # plt.show()
-# 
-# =============================================================================
-
-
 # 
 # =============================================================================
 
