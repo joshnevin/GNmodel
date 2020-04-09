@@ -80,24 +80,15 @@ def RBF(X1, X2, k1, k2):
     arg = np.zeros((np.shape(X1)[0], np.shape(X2)[0]))
     for i in range(np.shape(X1)[0]):
         for j in range(np.shape(X2)[0]):    
-            kern[j][i] = k1*np.exp(  -((np.linalg.norm(X1[i] - X2[j]))**2)/(2*k2)  )
-            arg[j][i] = (np.linalg.norm(X1[i] - X2[j]))**2/(2*k2) 
+            #print('i = '+str(i)+ ' j = ' + str(j))
+            kern[i][j] = k1*np.exp(  -((np.linalg.norm(X1[i] - X2[j]))**2)/(2*k2)  )
+            arg[i][j] = (np.linalg.norm(X1[i] - X2[j]))**2/(2*k2) 
     return kern, arg
-
-def RBF2(xs, X, k1, k2): # verified to be consistent with MATLAB gradfunc
-    kern = np.zeros((np.shape(X)[0], 1))
-    for i in range(np.shape(X)[0]):
-        kern[i] = (k1**2)*np.exp(  -(np.linalg.norm(xs - X[i]))**2/(2*(k2**2))  ) 
-    return kern
-
-xtest = x[0:10]
-test = RBF2(xtest,xtest,1,1)
 def lml(params):
     print(params)
     [k1, k2] = params
     Ky = RBF(x,x,k1,k2)[0] + (sig**2)*np.identity(n) # calculate initial kernel with noise 
     return -(-0.5*mul(mul(T(y),inv(Ky)), y) - 0.5*np.log((det(Ky))) - 0.5*n*np.log(2*np.pi)) # marginal likelihood - (5.8)
-
 def lmlg(params):
     k1, k2 = params
     Ky = RBF(x,x,k1,k2)[0] + (sig**2)*np.identity(n) # calculate initial kernel with noise 
@@ -125,20 +116,21 @@ for i in range(num_restarts+1):
 # %% generate GPR model using R+W algorithm 2.1
 k1 = results[0][0]
 k2 = results[0][1]
-
-def GPRfit(xtest,k1,k2):
-    Kst = RBF2(xtest,x,k1,k2)[0]
+def GPRfit(xs,k1,k2):
+    #Kst = RBF2(xtest,x,k1,k2)[0]
     Ky = RBF(x,x,k1,k2)[0] + (sig**2)*np.identity(n)
+    Ks = RBF(xs, x, k1, k2)[0]
+    Kss = RBF(xs, xs, k1, k2)[0]
     L = cholesky(Ky)
     al = solve(T(L), solve(L,y))
-    fmst = mul(T(Kst),al)
-    v = solve(L,Kst)
-    varfmst = RBF(xtest,xtest,k1,k2)[0] - mul(T(v),v)
+    fmst = mul(Ks,al)
+    v = solve(L,T(Ks))
+    varfmst = Kss - mul(T(v),v)
     lmlopt = -0.5*mul(T(y),al) - np.trace(np.log(L)) - 0.5*n*np.log(2*np.pi)
     return fmst, varfmst, lmlopt
-  
-fmst, varfmst, lmlopt = GPRfit(xtest,k1,k2)
-
+xs = x[0:10]
+fmst, varfmst, lmlopt = GPRfit(x,k1,k2)
+fmst2, var2, lml2 = GPRfit(xs,k1,k2)
 # %% plotting
 plt.plot(x,y,'+', label = 'data')
 plt.plot(x,fmst, label = 'Josh')

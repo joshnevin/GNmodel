@@ -32,12 +32,13 @@ reachcalculation = False
 #addnoise = True
 
 
-asediffmean = 5e-6
-asediffvar = asediffmean*0.2
 
-TRxSNR = db2lin(26) # TRX SNR [dB], see The Impact of Transceiver Noise on Digital Nonlinearity Compensation - Daniel Semrau et. al. 
-TRxdiffmean = db2lin(1.0)
-TRxdiffvar = TRxdiffmean*0.2
+asediffvar = 1e-6*2
+TRxSNR = db2lin(26) # TRX SNR [TRxdiffmean = db2lin(1.0)
+TRxdiffvar = 0.252*2
+snrdiffvar = 0.5
+powerdiffvar = 0.2
+#numpoints = 50
 numpoints = 1000
 
 def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam, addnoise ):
@@ -123,10 +124,10 @@ def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam, addnoise ):
     for i in range(numpoints):
         if addnoise:
             np.random.seed()
-            Pasepert = np.random.normal(asediffmean,asediffvar)            
-            TRxpert = np.random.normal(TRxdiffmean,TRxdiffvar)            
+            Pasepert = np.random.normal(0,asediffvar)            
+            TRxpert = np.random.normal(0,TRxdiffvar)            
             if np.size(Pasech) > 1 and np.size(GnliEq13mul) > 1 and np.size(Pch)==1:
-                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch)/(Pasech[i]+(-asediffmean+Pasepert) + GnliEq13mul[i]*Rs*1e9) )  + (1/(TRxSNR-TRxdiffmean+TRxpert)) )  ) 
+                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch)/(Pasech[i]+Pasepert + GnliEq13mul[i]*Rs*1e9) )  + (1/(TRxSNR+TRxpert)) )  ) 
                 SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO[i] + GnliEq13mul[i]*OSNRmeasBW))
                 OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO[i])
                 SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
@@ -134,7 +135,7 @@ def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam, addnoise ):
                 
             elif np.size(Pasech) > 1 and np.size(GnliEq13mul) == 1 and np.size(Pch)==1:    
                 
-                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch)/(Pasech[i]+(-asediffmean+Pasepert) + GnliEq13mul*Rs*1e9) )  + (1/(TRxSNR-TRxdiffmean+TRxpert)) )  ) 
+                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch)/(Pasech[i]+Pasepert + GnliEq13mul*Rs*1e9) )  + (1/(TRxSNR+TRxpert)) )  ) 
                 SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO[i] + GnliEq13mul*OSNRmeasBW))
                 SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2[i] + GnliEq15mul2*BchRS2*1e9))
                 SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS[i] + GnliEq15mul*BchRS*1e9))
@@ -142,7 +143,7 @@ def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam, addnoise ):
             
             elif np.size(Pasech) == 1 and np.size(GnliEq13mul) > 1 and np.size(Pch)==1:    
             
-                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch)/(Pasech+(-asediffmean+Pasepert) + GnliEq13mul[i]*Rs*1e9) )  + (1/(TRxSNR-TRxdiffmean+TRxpert)) )  ) 
+                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch)/(Pasech + Pasepert + GnliEq13mul[i]*Rs*1e9) )  + (1/(TRxSNR+TRxpert)) )  ) 
                 SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO + GnliEq13mul[i]*Rs*1e9))
                 #SNRanalytical[i] = 10*np.log10((LF*Pch)/(Pasech + GnliEq13mul[i]*OSNRmeasBW))
                 SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS + GnliEq15mul[i]*BchRS*1e9))
@@ -151,7 +152,7 @@ def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam, addnoise ):
             
             elif np.size(Pasech) == 1 and np.size(GnliEq13mul) > 1 and np.size(Pch) > 1:    
             
-                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch[i])/(Pasech+(-asediffmean+Pasepert) + GnliEq13mul[i]*Rs*1e9) )  + (1/(TRxSNR-TRxdiffmean+TRxpert)) )  ) 
+                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch[i])/(Pasech+Pasepert + GnliEq13mul[i]*Rs*1e9) )  + (1/(TRxSNR+TRxpert)) )  ) 
                 SNRanalyticalO[i] = 10*np.log10((LF*Pch[i])/(PasechO + GnliEq13mul[i]*OSNRmeasBW))
                 SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS + GnliEq15mul[i]*BchRS*1e9))
                 SNRanalyticalRS2[i] = 10*np.log10((LF*Pch[i])/(PasechRS2 + GnliEq15mul2[i]*BchRS2*1e9))
@@ -159,14 +160,14 @@ def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam, addnoise ):
                 
             elif np.size(Pasech) == 1 and np.size(GnliEq13mul) == 1 and np.size(Pch) == 1:    
             
-                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch)/(Pasech+(-asediffmean+Pasepert) + GnliEq13mul*Rs*1e9) )  + (1/(TRxSNR-TRxdiffmean+TRxpert)) )  ) 
+                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch)/(Pasech+Pasepert + GnliEq13mul*Rs*1e9) )  + (1/(TRxSNR+TRxpert)) )  ) 
                 SNRanalyticalO[i] = 10*np.log10((LF*Pch)/(PasechO + GnliEq13mul*OSNRmeasBW))
                 SNRanalyticalRS[i] = 10*np.log10((LF*Pch)/(PasechRS + GnliEq15mul*BchRS*1e9))
                 SNRanalyticalRS2[i] = 10*np.log10((LF*Pch)/(PasechRS2 + GnliEq15mul2*BchRS2*1e9))   
                 OSNRanalytical[i] = 10*np.log10((LF*Pch)/PasechO)
             else:
                 #SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
-                SNRanalytical[i] = 10*np.log10((LF*Pch[i])/(Pasech[i]+(-asediffmean+Pasepert) + GnliEq13mul[i]*Rs*1e9))
+                SNRanalytical[i] = 10*np.log10( 1/( 1/((LF*Pch[i])/(Pasech[i]+Pasepert + GnliEq13mul[i]*Rs*1e9) )  + (1/(TRxSNR+TRxpert)) )  ) 
                 SNRanalyticalO[i] = 10*np.log10((LF*Pch[i])/(PasechO[i] + GnliEq13mul[i]*OSNRmeasBW))
                 SNRanalyticalRS2[i] = 10*np.log10((LF*Pch[i])/(PasechRS2[i] + GnliEq15mul2[i]*BchRS2*1e9))
                 SNRanalyticalRS[i] = 10*np.log10((LF*Pch[i])/(PasechRS[i] + GnliEq15mul[i]*BchRS*1e9))
@@ -328,7 +329,7 @@ def histdraw(counts, bins):
 PchdBm = np.linspace(-10, 10, num = numpoints, dtype =float) 
 #PchdBm = 0
 #alpha = 0.25
-Nspans = 1
+Nspans = 3
 Lspans = 100
 num_breaks = 1 # set the number of fibre breaks
 num_years = (num_breaks*374)/(Nspans*Lspans) # expected number of years for this number of fibre breaks given a rate of 1 break/374km/year
@@ -355,7 +356,7 @@ g1max = nf_model(gain_min,gain_max,nf_min,nf_max )[3]
 g1min = nf_model(gain_min,gain_max,nf_min,nf_max )[4]
 g1a = gain_target - deltap - (gain_max - gain_target)
 NF = lin2db(db2lin(nf1) + db2lin(nf2)/db2lin(g1a))  
-#NF = 4.5
+#NF = 5.0
 # =========================== differing spans bit ==================================
 
 def spanvar(PchdBm):
@@ -396,13 +397,10 @@ PchdBmrs = []
 for _ in range(numsweeps):
     PchdBmrs.append(PchdBm)
 PchdBmrs = np.reshape(PchdBmrs,numpoints*numsweeps)
-
 #SNRtest1 = spanvar(PchdBm)
 #SNRtest2 = spanvar(PchdBm)
 #SNRtest3 = spanvar(PchdBm)
 #SNRtest4 = spanvar(PchdBm)
-
-
 # =============================================================================
 # plt.plot(PchdBmrs, SNRdataset,'*', label = 'draw one')
 # plt.ylabel('SNR (dB)')
@@ -425,24 +423,18 @@ path4 = [4800,1500,2700]
 
 np.random.seed(101)
 
-snrdiffmean = 5.0
-snrdiffvar = snrdiffmean*0.1
-
-
-
 # path 1 - calculate the SNR at each node and return them 
 def NSFNETexample(path):
     p = []
     pts = []
-    pn = []
+    #pn = []
     #pase = []
     for i in range(np.size(path)):
         p.append(main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco,False)[0] )
         Popt = PchdBm[np.argmax(p[i])]
-        Popts = np.linspace(Popt-1.5, Popt+1.5, numpoints)
+        Popts = np.linspace(Popt-1.5, Popt+1.5, numpoints) +  np.random.normal(0, powerdiffvar, numpoints)
         pts.append(main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, Popts, NF, NLco,True)[0] )
-        pn.append(main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco,False)[0] - snrdiffmean +  np.random.normal(snrdiffmean, snrdiffvar, numpoints))
-        
+        #pn.append(main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco,False)[0] +  np.random.normal(0, snrdiffvar, numpoints))
         #popt = (main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco)[-1])
     #path1popt = [PchdBm[np.argmax(p[i])] for i in range(np.size(p,0))]
     return p,pts, Popt
@@ -461,6 +453,7 @@ np.savetxt('drawind.csv', drawind, delimiter=',')
 np.savetxt('PchdBmopts.csv', PchdBmopts, delimiter=',') 
 np.savetxt('SNRpath1.csv', path1snr, delimiter=',') 
 
+# %%
 
 # BER calculation 
 M = 4
@@ -728,36 +721,34 @@ GNPyosnr = np.genfromtxt(open("OSNRGNPy.csv", "r"), delimiter=",", dtype =float)
 # %% SNR plotting bit 
 #Pchgnpy = np.linspace(-10,10,np.size(GNPysnr))
 
-
 # =============================================================================
 # plt.plot(PchdBm, SNRanalyticalO, label = 'Nyquist')
 # plt.plot(PchdBm,GNPysnr, label='GNPy')
 # plt.legend()
 # plt.ylabel('SNR (dB)')
-# #plt.xlabel('loss coefficient (dB/km)')
+# plt.xlabel('loss coefficient (dB/km)')
 # #plt.xlabel('EDFA NF (dB)')
 # plt.xlabel('Pch (dBm)')
 # #plt.xlabel('Draw index')
 # # #plt.xlabel('dispersion (ps/nm*km)')
-# plt.title('SNR vs Pch 0.1 nm variable gain 2 channels')
+# plt.title('SNR 3 spans')
 # #plt.grid()
-# #plt.savefig('JoshvsGNPyvariablegain2ch.png', dpi=200)
+# plt.savefig('JoshvsGNPyvariablegain.png', dpi=200)
 # plt.show()
-# # 
+# # # 
 # plt.plot(PchdBm, OSNRanalytical, label = 'Josh')
 # plt.plot(PchdBm,GNPyosnr, label='GNPy')
 # plt.legend()
 # plt.ylabel('OSNR (dB)')
-# #plt.xlabel('loss coefficient (dB/km)')
-# # #plt.xlabel('EDFA NF (dB)')
+# # #plt.xlabel('loss coefficient (dB/km)')
+# # # #plt.xlabel('EDFA NF (dB)')
 # plt.xlabel('Pch (dBm)')
-# # #plt.xlabel('Draw index')
-# # # #plt.xlabel('dispersion (ps/nm*km)')
-# plt.title('OSNR vs Pch 0.1 nm variable gain 2 channels')
+# # # #plt.xlabel('Draw index')
+# # # # #plt.xlabel('dispersion (ps/nm*km)')
+# plt.title('OSNR 3 spans')
 # #plt.grid()
-# # #plt.savefig('JoshvsGNPyvariablegainOSNR2ch.png', dpi=200)
+# plt.savefig('JoshvsGNPyvariablegainOSNR.png', dpi=200)
 # plt.show()
-# 
 # =============================================================================
 
 # %%
