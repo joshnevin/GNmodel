@@ -33,9 +33,9 @@ reachcalculation = False
 
 
 
-asediffvar = 1e-6*2
+asediffvar = 1e-6
 TRxSNR = db2lin(26) # TRX SNR [TRxdiffmean = db2lin(1.0)
-TRxdiffvar = 0.252*2
+TRxdiffvar = 0.252
 snrdiffvar = 0.5
 powerdiffvar = 0.2
 #numpoints = 50
@@ -443,15 +443,31 @@ path1snr = NSFNETexample(path1)[1][-1]
 Popt = NSFNETexample(path1)[2]
 drawind = np.linspace(1,numpoints,numpoints)
 PchdBmopts = np.linspace(Popt-1.5, Popt+1.5, numpoints)
-
 plt.plot(PchdBmopts, path1snr, '*')
 plt.xlabel("Pch")
 plt.ylabel("SNR (dB)")
+plt.savefig('Asnrdatapath1.png', dpi=200)
 plt.show()
 
 np.savetxt('drawind.csv', drawind, delimiter=',') 
 np.savetxt('PchdBmopts.csv', PchdBmopts, delimiter=',') 
 np.savetxt('SNRpath1.csv', path1snr, delimiter=',') 
+
+# %% obtain noise variation of data approximately 
+
+#sigsam = [ np.amax(path1snr[i:i+20]) - np.amix(path1snr[i:i+20]) for i in range(0,) ]
+n = 50
+snrsam = [path1snr[i:i + n] for i in range(0, np.size(path1snr), n)]
+sigsam = [(np.amax(snrsam[i]) - np.amin(snrsam[i]))*0.68 for i in range(np.size(snrsam,0))]
+Pchsig = np.linspace(PchdBmopts[0],PchdBmopts[numpoints-1], np.size(snrsam,0))
+plt.plot(Pchsig,sigsam,'o')
+plt.xlabel("Pch (dBm)")
+plt.ylabel("sigma (dB)")
+plt.title("Approximate sigma variation")
+plt.savefig('approxsigvar.png', dpi=200)
+plt.show()
+
+
 
 # %%
 
