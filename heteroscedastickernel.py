@@ -35,13 +35,13 @@ x = x.reshape(-1,1)
 # y = y.reshape(-1,1)
 # x = x.reshape(-1,1)
 # =============================================================================
-plt.plot(x,y,'+')
-plt.show()
+#plt.plot(x,y,'+')
+#plt.show()
 # %% ========================= SKLearn for comparison =========================
 #kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-3, 1e3)) + W(1.0, (1e-5, 1e5))
 kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-3, 1e3)) 
 print("Initial kernel: %s" % kernel)
-gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer = 0, normalize_y=False, alpha=np.amax(sd))
+gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer = 0, normalize_y=False, alpha=np.var(y)**0.5)
 #gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer = 9, normalize_y=False)
 start = time.time()
 gpr.fit(x, y)
@@ -75,7 +75,7 @@ plt.legend()
 plt.show() 
 # %% ========================= my implementation of GPR =========================
 # initialise model and optimise hyperparameters via maximum likelihood
-sig = np.amax(sd) # set constant noise level as the maximum noise in dataset 
+
 def RBF(X,Y,k1,k2):
     X = np.atleast_2d(X)
     if Y is None:
@@ -94,26 +94,9 @@ def RBF(X,Y,k1,k2):
         dists = cdist(X / k2, Y / k2,metric='sqeuclidean')
         K = np.exp(-.5 * dists)
         return k1*K
-# =============================================================================
-# def lml(params):
-#     #print(params)
-#     [k1, k2] = params
-#     Ky = RBF(x,x,k1,k2)[0] + (sig**2)*np.identity(n) # calculate initial kernel with noise 
-#     return -(-0.5*mul(mul(T(y),inv(Ky)), y) - 0.5*np.log((det(Ky))) - 0.5*n*np.log(2*np.pi)) # marginal likelihood - (5.8)
-# def lmlg(params):
-#     k1, k2 = params
-#     Ky = RBF(x,x,k1,k2)[0] + (sig**2)*np.identity(n) # calculate initial kernel with noise 
-#     al = mul(inv(Ky),y)
-#     dKdk1 = RBF(x,x,k1,k2)[0]*(1/k1)
-#     #dKdk2 = mul(RBF(x,x,k1,k2)[0],RBF(x,x,k1,k2)[1]*(1/k2))
-#     dKdk2 = RBF(x,x,k1,k2)[0]*RBF(x,x,k1,k2)[1]*(1/k2)
-#     lmlg1 = -(0.5*np.trace(mul(mul(al,T(al)) - inv(Ky), dKdk1)))
-#     lmlg2 = -(0.5*np.trace(mul(mul(al,T(al)) - inv(Ky), dKdk2)))
-#     return np.ndarray((2,), buffer=np.array([lmlg1,lmlg2]), dtype = float)
-# =============================================================================
 Kyinv = 0.0
 Kf = 0.0
-def lml(params):
+def lml(params,y,sig):
     #print(params)  # show progress of fit
     [k1, k2] = params
     global Kf
@@ -124,7 +107,7 @@ def lml(params):
     Kyinv = inv(Ky)
     return -(-0.5*mul(mul(T(y),Kyinv), y) - 0.5*np.log((det(Ky))) - 0.5*n*np.log(2*np.pi)) # marginal likelihood - (5.8)
 
-def lmlg(params):
+def lmlg(params,y,sig):
     k1, k2 = params
     al = mul(Kyinv,y)
     dKdk1 = Kf*(1/k1)
@@ -132,6 +115,31 @@ def lmlg(params):
     lmlg1 = -(0.5*np.trace(mul(mul(al,T(al)) - Kyinv, dKdk1)))
     lmlg2 = -(0.5*np.trace(mul(mul(al,T(al)) - Kyinv, dKdk2)))
     return np.ndarray((2,), buffer=np.array([lmlg1,lmlg2]), dtype = float)
+
+# heteroscedastic versions of functions 
+Kyinvh = 0.0
+Kfh =  0.0 
+def lmlh(params,y,R):
+    #print(params)  # show progress of fit
+    [k1, k2] = params
+    global Kfh
+    #Kf = RBF(x,x,k1,k2)[0] 
+    Kfh = RBF(x,None,k1,k2**0.5)[0]
+    Ky = Kfh + R # calculate initial kernel with noise
+    global Kyinvh
+    Kyinvh = inv(Ky)
+    return -(-0.5*mul(mul(T(y),Kyinvh), y) - 0.5*np.log((det(Ky))) - 0.5*n*np.log(2*np.pi)) # marginal likelihood - (5.8)
+
+def lmlgh(params,y,R):
+    k1, k2 = params
+    al = mul(Kyinvh,y)
+    dKdk1 = Kfh*(1/k1)
+    dKdk2 = RBF(x,None,k1,k2**0.5)[1].reshape(n,n)
+    lmlg1 = -(0.5*np.trace(mul(mul(al,T(al)) - Kyinvh, dKdk1)))
+    lmlg2 = -(0.5*np.trace(mul(mul(al,T(al)) - Kyinvh, dKdk2)))
+    return np.ndarray((2,), buffer=np.array([lmlg1,lmlg2]), dtype = float)
+
+
 # %% run optimiser
 # =============================================================================
 # numh = 2
@@ -152,62 +160,147 @@ def lmlg(params):
 # print("My GPR fitting took " + str(end - start) + "s")
 # =============================================================================
 # %% generate GPR model using R+W algorithm 2.1
-#k1 = results[0][0]
-#k2 = results[0][1]
-def GPRfit(xs,k1,k2):
+def GPRfit(xs,k1,k2,sig):
     #Kst = RBF2(xtest,x,k1,k2)[0]
     Ky = RBF(x,None,k1,k2**0.5)[0] + (sig**2)*np.identity(n)
+    Ks = RBF(xs, x, k1, k2**0.5)
+    Kss = RBF(xs, None, k1, k2**0.5)[0]
+    L = cholesky(Ky)
+    al = solve(T(L), solve(L,y))
+    fmst = mul(Ks,al)
+    varfmst = np.empty([numpoints,1])
+    for i in range(np.size(xs)):
+        v = solve(L,T(Ks[:,i]))
+        varfmst[i] = Kss[i,i] - mul(T(v),v)
+    lmlopt = -0.5*mul(T(y),al) - np.trace(np.log(L)) - 0.5*n*np.log(2*np.pi)
+    return fmst, varfmst, lmlopt
+
+def GPRfith(xs,k1,k2,R,Rs):
+    #Kst = RBF2(xtest,x,k1,k2)[0]
+    Ky = RBF(x,None,k1,k2**0.5)[0] + R
     Ks = RBF(xs, x, k1, k2**0.5)
     Kss = RBF(xs, None, k1, k2)[0]
     L = cholesky(Ky)
     al = solve(T(L), solve(L,y))
     fmst = mul(Ks,al)
-    v = solve(L,T(Ks))
-    varfmst = Kss - mul(T(v),v)
+    varfmst = np.empty([numpoints,1])
+    for i in range(np.size(xs)):
+        v = solve(L,T(Ks[:,i]))
+        varfmst[i] = Kss[i,i] + Rs[i,i] - mul(T(v),v)
     lmlopt = -0.5*mul(T(y),al) - np.trace(np.log(L)) - 0.5*n*np.log(2*np.pi)
     return fmst, varfmst, lmlopt
-#xs = x[0:10]
-#fmst, varfmst, lmlopt = GPRfit(x,k1,k2)
-#fmst2, var2, lml2 = GPRfit(xs,k1,k2)
-# %% plotting
-# =============================================================================
-# plt.plot(x,y,'+', label = 'data')
-# plt.plot(x,fmst, label = 'Josh')
-# plt.plot(x,ystar, label = 'SK Learn')
-# plt.legend()
-# plt.xlabel('$x$')
-# plt.ylabel('$y$')
-# plt.savefig('gprsklearnvsjosh.pdf', dpi=200)
-# plt.show()
-# =============================================================================
-
 # %% ========================= Heteroscedastic GPR implementation =========================
 # using algorithm from Most Likely Heteroscedastic Gaussian Process Regression - Kristian Kersting et. al. 
 # I will use my implementation only to start with for consistency - could use SKLearn for steps 1-3 for speed
-# Step 1: homoscedastic GP on D
-
+# Step 1: homoscedastic GP1 on D - (x,y)
 numh = 2 # number of hyperparameters in kernel function 
 k1is1 = 1.0
 k2is1 = 1.0
+#sig1 = np.amax(sd) # set constant noise level as the maximum noise in dataset 
+sig1 = np.var(y)**0.5
 kis1 = np.ndarray((numh,), buffer=np.array([k1is1,k2is1]), dtype = float)
-s1res = minimize(lml,kis1,method = 'L-BFGS-B',jac=lmlg,bounds = ((1e-5,1e5),(1e-5,1e5)))
+s1res = minimize(lml,kis1,args=(y,sig1),method = 'L-BFGS-B',jac=lmlg,bounds = ((1e-5,1e5),(1e-5,1e5)))
 step1res = []
 if s1res.success:
     step1res.append(s1res.x)
-    print("Success")
+    print("Success -- step 1 complete")
 else:
-    raise ValueError(step1res.message)
+    raise ValueError(s1res.message)
+    #print("Hyperparameter optimisation failed")
 k1s1 = step1res[0][0]
 k2s1 = step1res[0][1]
-# Step 2: estimate empirical noise levels 
+fmst, varfmst, lmlopt = GPRfit(x,k1s1,k2s1,sig1)
 
+sigs1 = varfmst**0.5
+fmstps1 = fmst + numsig*sigs1
+fmstms1 = fmst - numsig*sigs1
 
+labelfillj = "2 sigma Josh"
 
+plt.plot(x,y,'+')
+plt.plot(x,fmst, label = 'Josh')
+plt.plot(x,ystar, label = 'SK Learn')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([fmstps1,
+                        (fmstms1)[::-1]]),
+         alpha=0.3, fc='r', ec='None', label=labelfillj)
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([ystarp,
+                        (ystarm)[::-1]]),
+         alpha=0.3, fc='g', ec='None', label=labelfill)
+plt.legend()
+plt.xlabel('$x$')
+plt.ylabel('$y$')
+# plt.savefig('gprsklearnvsjosh.pdf', dpi=200)
+plt.show()
 
+# %% Step 2: estimate empirical noise levels z 
+z = np.log((y - fmst)**2)  # no average as we have a 1D dataset - would in general be a vector 
+# %% Step 3: estimate GP2 on D' - (x,z)
+k1is3 = 3.0
+k2is3 = 0.01
+sig3 = np.var(z)**0.5
+kis3 = np.ndarray((numh,), buffer=np.array([k1is3,k2is3]), dtype = float)
+s3res = minimize(lml,kis3,args=(z,sig3),method = 'L-BFGS-B',jac=lmlg,bounds = ((1e-5,1e5),(1e-5,1e5)))
+step3res = []
+if s3res.success:
+    step3res.append(s3res.x)
+    print("Success -- step 3 complete")
+else:
+    raise ValueError(s3res.message)
+    #print("Hyperparameter optimisation failed")
+k1s3 = step3res[0][0]
+k2s3 = step3res[0][1]
+fmst3, varfmst3, lmlopt3 = GPRfit(x,k1s3,k2s3,sig3)
+# =============================================================================
+plt.plot(x,z,'+', label = 'log variance')
+plt.plot(x,fmst3, label = 'GP2')
+plt.legend()
+plt.xlabel('$x$')
+plt.ylabel('$z$')
+# plt.savefig('gprsklearnvsjosh.pdf', dpi=200)
+plt.show()
+# =============================================================================
+# %% Step 4: train heteroscedastic GP3 using predictive mean of G2 to predict log noise levels r
+r = exp(fmst3)
+#R = T(r)*np.identity(numpoints)
+R = r*np.identity(numpoints)
 
+k1is4 = 1.0
+k2is4 = 1.0
+sig4 = np.var(y)**0.5
+kis4 = np.ndarray((numh,), buffer=np.array([k1is4,k2is4]), dtype = float)
+s4res = minimize(lmlh,kis4,args=(y,R),method = 'L-BFGS-B',jac=lmlgh,bounds = ((1e-5,1e5),(1e-5,1e5)))
+step4res = []
+if s4res.success:
+    step4res.append(s4res.x)
+    print("Success -- step 4 complete")
+else:
+    raise ValueError(s4res.message)
+    #print("Hyperparameter optimisation failed")
+k1s4 = step4res[0][0]
+k2s4 = step4res[0][1]
 
+# %%
 
+fmst4, varfmst4, lmlopt4 = GPRfith(x,k1s4,k2s4,R,R)
+# =============================================================================
 
+sigs4 = varfmst4**0.5
+fmstps4 = fmst4 + numsig*sigs4
+fmstms4 = fmst4 - numsig*sigs4
+
+plt.plot(x,y,'+', label = 'data')
+plt.plot(x,fmst4, label = 'GP3')
+plt.legend()
+plt.xlabel('$x$')
+plt.ylabel('$y$')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([fmstps4,
+                        (fmstms4)[::-1]]),
+         alpha=0.3, fc='r', ec='None', label=labelfillj)
+# plt.savefig('gprsklearnvsjosh.pdf', dpi=200)
+plt.show()
 
 
 
