@@ -6,36 +6,36 @@ import numpy as np
 import matplotlib.pyplot as plt 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
-from sklearn.preprocessing import scale
+from sklearn.preprocessing import StandardScaler
 import time
 from numpy.linalg import cholesky
 from numpy import transpose as T
-from numpy.linalg import inv, det, lstsq, solve, norm
+from numpy.linalg import inv, det, solve
 from numpy import matmul as mul, exp
+from numpy.random import normal
 from scipy.optimize import minimize
 from scipy.spatial.distance import pdist, cdist, squareform
-# fit to Goldberg dataset 
-#np.savetxt('xhetdata.csv', x, delimiter=',') # to freeze data
-#np.savetxt('yhetdata.csv', y, delimiter=',')
 
 # %%
 #numpoints = 1000
-#x = np.genfromtxt(open("xhetdata.csv", "r"), delimiter=",", dtype =float)
-#y = np.genfromtxt(open("yhetdata.csv", "r"), delimiter=",", dtype =float)
-x = np.genfromtxt(open("PchdBmopts.csv", "r"), delimiter=",", dtype =float)
-y = np.genfromtxt(open("SNRpath1.csv", "r"), delimiter=",", dtype =float)
+y = np.genfromtxt(open("yhetdata.csv", "r"), delimiter=",", dtype =float)
+x = np.genfromtxt(open("xhetdata.csv", "r"), delimiter=",", dtype =float)
+#x = np.genfromtxt(open("PchdBmopts.csv", "r"), delimiter=",", dtype =float)
+#y = np.genfromtxt(open("SNRpath1.csv", "r"), delimiter=",", dtype =float)
 # =============================================================================
-# x = np.linspace(0,1,numpoints)
-# sd = np.linspace(0.5,1.5,numpoints)
-# y = np.zeros(numpoints)
-# n = np.size(x)
-# for i in range(numpoints):
-#     y[i] = 2*np.sin(2*np.pi*x[i]) + np.random.normal(0, sd[i])
+#x = np.linspace(0,1,numpoints)
+#sd = np.linspace(0.5,1.5,numpoints)
+#y = np.zeros(numpoints)
+#n = np.size(x)
+#for i in range(numpoints):
+#    y[i] = 2*np.sin(2*np.pi*x[i]) + np.random.normal(0, sd[i])
 # =============================================================================
 y = y.reshape(-1,1)
 x = x.reshape(-1,1)
+ymean = np.mean(y)
 n = np.size(x)
-y = scale(y)
+#scaler = StandardScaler().fit(y)
+#y = scaler.transform(y)
 
 # %% ========================= SKLearn for comparison =========================
 kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-3, 1e3)) + W(1.0, (1e-5, 1e5))
@@ -56,7 +56,7 @@ rho = hyperparameter[1]**0.5 # k2
 ystar, sigma = gpr.predict(x, return_std=True )
 sigma = np.reshape(sigma,(np.size(sigma), 1))
 sigmaave = np.mean(sigma) 
-numsig = 2
+numsig = 1
 ystarp = ystar + numsig*sigma
 ystarm = ystar - numsig*sigma 
 labelp = "GPR mean + " + str(numsig) +  " sigma"
@@ -243,80 +243,145 @@ plt.ylabel('$y$')
 # plt.savefig('gprsklearnvsjosh.pdf', dpi=200)
 plt.show()
 
+
 # %% Steps 2-4 in a loop - iterate until convergence 
-
+numrestarts = 5
 def hetloop(fmst,ct):
-    k1is3 = k2is3 = k1is4 = k2is4 = 1.0
-    avediff = 100.0
-    notconverged = True
-    while notconverged:
-        # Step 2: estimate empirical noise levels z 
-        z = np.log((y - fmst)**2)  # no average as we have a 1D dataset - would in general be a vector 
-        #  Step 3: estimate GP2 on D' - (x,z)
-        sig3 = np.var(z)**0.5
-        kis3 = np.ndarray((numh,), buffer=np.array([k1is3,k2is3]), dtype = float)
-        s3res = minimize(lml,kis3,args=(z,sig3),method = 'L-BFGS-B',jac=lmlg,bounds = ((1e-5,1e5),(1e-5,1e5)))
-        step3res = []
-        if s3res.success:
-            step3res.append(s3res.x)
-        else:
-            k1is3 = np.random.uniform(0.01,100)
-            k2is3 = np.random.uniform(0.01,100)
-            print("error - reinitialising hyperparameters")
-            continue
-            #raise ValueError(s3res.message)
-        k1s3 = step3res[0][0]
-        k2s3 = step3res[0][1]
-        fmst3, varfmst3, lmlopt3 = GPRfit(x,k1s3,k2s3,sig3)
-# =============================================================================
-#         plt.plot(x,z,'+')
-#         plt.plot(x,fmst3)
-#         plt.show()
-#         print(sig3)
-# =============================================================================
-        # Step 4: train heteroscedastic GP3 using predictive mean of G2 to predict log noise levels r
-        r = exp(fmst3)
-        R = r*np.identity(n)
-        kis4 = np.ndarray((numh,), buffer=np.array([k1is4,k2is4]), dtype = float)
-        s4res = minimize(lmlh,kis4,args=(y,R),method = 'L-BFGS-B',jac=lmlgh,bounds = ((1e-5,1e5),(1e-5,1e5)))
-        step4res = []
-        if s4res.success:
-            step4res.append(s4res.x)
-        else:
-            #raise ValueError(s4res.message)
-            k1is4 = np.random.uniform(0.01,100)
-            k2is4 = np.random.uniform(0.01,100)
-            print("error - reinitialising hyperparameters")
-            continue 
-        k1s4 = step4res[0][0]
-        k2s4 = step4res[0][1]
-        fmst4, varfmst4, lmlopt4 = GPRfith(x,k1s4,k2s4,R,R)
-        # test for convergence 
-        avediff = sum(np.where(abs(fmst - fmst4)<ct,0,abs(fmst - fmst4)))
-        if avediff != 0:
-            print("average deviation = " + str(avediff))
-            fmst = fmst4 # if not converged, set GP1 = GP3 and repeat steps 2-4
-            k1is3 = k1s3 # start optimiser at previous local optimum 
-            k2is3 = k2s3
-            k1is4 = k1s4
-            k2is4 = k2s4
-        else:
-            notconverged = False
-    return fmst4,varfmst4, lmlopt4
+    s = 150
+    lmlsave = np.empty([numrestarts,1])
+    fmstsave = np.empty([numrestarts,n])
+    varfmstsave = np.empty([numrestarts,n])
+    for i in range(numrestarts):
+        k1is3 = k2is3 = k1is4 = k2is4 = 1.0#np.random.uniform(0.01,100)
+        avediff = 100.0
+        notconverged = True
+        while notconverged:
+            # Step 2: estimate empirical noise levels z 
+            #z = np.log(n*0.5*(y - fmst)**2)  # old erroneous implementation
+            z = np.empty([n,1])
+            for j in range(n):
+                np.random.seed()
+                normdraw = normal(fmst[j], varfmst[j]**0.5, s).reshape(s,1)
+                z[j] = np.log((1/s)*0.5*sum((y[j] - normdraw)**2))
+            #  Step 3: estimate GP2 on D' - (x,z)
+            sig3 = np.var(z)**0.5
+            kis3 = np.ndarray((numh,), buffer=np.array([k1is3,k2is3]), dtype = float)
+            s3res = minimize(lml,kis3,args=(z,sig3),method = 'L-BFGS-B',jac=lmlg,bounds = ((1e-5,1e5),(1e-5,1e5)))
+            step3res = []
+            if s3res.success:
+                step3res.append(s3res.x)
+            else:
+                k1is3 = np.random.uniform(0.01,100)
+                k2is3 = np.random.uniform(0.01,100)
+                print("error - reinitialising hyperparameters")
+                continue
+                #raise ValueError(s3res.message)
+            k1s3 = step3res[0][0]
+            k2s3 = step3res[0][1]
+            fmst3, varfmst3, lmlopt3 = GPRfit(x,k1s3,k2s3,sig3)
+    # =============================================================================
+    #         plt.plot(x,z,'+')
+    #         plt.plot(x,fmst3)
+    #         plt.show()
+    #         print(sig3)
+    # =============================================================================
+            # Step 4: train heteroscedastic GP3 using predictive mean of G2 to predict log noise levels r
+            r = exp(fmst3)
+            R = r*np.identity(n)
+            kis4 = np.ndarray((numh,), buffer=np.array([k1is4,k2is4]), dtype = float)
+            s4res = minimize(lmlh,kis4,args=(y,R),method = 'L-BFGS-B',jac=lmlgh,bounds = ((1e-5,1e5),(1e-5,1e5)))
+            step4res = []
+            if s4res.success:
+                step4res.append(s4res.x)
+            else:
+                #raise ValueError(s4res.message)
+                k1is4 = np.random.uniform(0.01,100)
+                k2is4 = np.random.uniform(0.01,100)
+                print("error - reinitialising hyperparameters")
+                continue 
+            k1s4 = step4res[0][0]
+            k2s4 = step4res[0][1]
+            fmst4, varfmst4, lmlopt4 = GPRfith(x,k1s4,k2s4,R,R)
+            # test for convergence 
+            avediff = sum(np.where(abs(fmst - fmst4)<ct,0,abs(fmst - fmst4)))
+            if avediff != 0:
+                print("average deviation = " + str(avediff))
+                fmst = fmst4 # if not converged, set GP1 = GP3 and repeat steps 2-4
+                k1is3 = k1s3 # start optimiser at previous local optimum 
+                k2is3 = k2s3 
+                k1is4 = k1s4 
+                k2is4 = k2s4 
+            else:
+                fmstsave[i,:] = fmst4.reshape(n)
+                varfmstsave[i,:] = varfmst4.reshape(n)
+                lmlsave[i] = lmlopt4
+                print("finished iteration" + str(i))
+                notconverged = False
+            
+    return fmst4,varfmst4, lmlopt4, fmstsave, varfmstsave, lmlsave
 
-fmst4,varfmst4, lmlopt4 = hetloop(fmst,1e-3)
+fmst4,varfmst4, lmlopt4,fmsttest, vartest, lmltest = hetloop(fmst,1e-3)
+
+
+# %% plot the different solutions 
+
+plt.plot(x,fmsttest[0])
+plt.plot(x,fmsttest[1])
+plt.plot(x,fmsttest[2])
+plt.plot(x,fmsttest[3])
+plt.plot(x,fmsttest[4])
+plt.plot(x,y,'+')
+plt.show()
+
+plt.plot(x,vartest[0])
+plt.plot(x,vartest[1])
+plt.plot(x,vartest[2])
+plt.plot(x,vartest[3])
+plt.plot(x,vartest[4])
+plt.xlabel('$x$')
+plt.ylabel('$\sigma^2$')
+#plt.savefig('Aheteroscedasticgsigmacomp.pdf', dpi=200)
+plt.show()
+
+ns = int(float(n)/10.0)
+snrsam = [y[i:i + ns] for i in range(0, np.size(y), ns)]
+sigsam = [np.var(snrsam[i]) for i in range(np.size(snrsam,0))]
+xsig = np.linspace(x[0],x[n-1], np.size(snrsam,0))
+yp = np.polyfit(xsig.reshape(ns),sigsam,2)
+pol = np.poly1d(yp)
+plt.plot(xsig,sigsam,'o')
+plt.plot(xsig,pol(xsig))
+plt.xlabel("$x$")
+plt.ylabel("$\sigma^2$")
+plt.title("Approximate sigma variation")
+#plt.savefig('approxsigvar.png', dpi=200)
+plt.show()
+
+
 
 #  plotting 
-
 sigs4 = varfmst4**0.5
 fmstps4 = fmst4 + numsig*sigs4
 fmstms4 = fmst4 - numsig*sigs4
 
 # %%
 
-plt.plot(x,y,'+', label = 'data')
-plt.plot(x,fmst4, label = 'heteroscedastic GP')
-plt.plot(x,ystar, label = 'SKLearn homoscedastic GP')
+test = np.empty([100,5])
+
+test2 = np.linspace(0,1,100).reshape(100)
+
+test[:,0]= test2
+
+
+
+# %%
+
+yana = 2*np.sin(2*np.pi*x)
+
+plt.plot(x,y,'+')
+plt.plot(x,fmst4, label = 'HGP')
+plt.plot(x,fmst4, label = '$2sin(2{\pi}x)$')
+#plt.plot(x,ystar, label = 'SKLearn')
 plt.legend()
 plt.xlabel('$x$')
 plt.ylabel('$y$')
@@ -324,10 +389,46 @@ plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([fmstps4,
                         (fmstms4)[::-1]]),
          alpha=0.3, fc='r', ec='None', label=labelfillj)
-plt.savefig('Aheteroscedasticgdata.pdf', dpi=200)
+#plt.title("Shifted HGP")
+#plt.savefig('Aheteroscedasticgdata.pdf', dpi=200)
 plt.show()
 
+plt.plot(x,sigs4,label='heteroscedastic GP')
+#plt.plot(x,sigma,label='SKLearn')
+plt.xlabel('$x$')
+plt.ylabel('$\sigma$')
+plt.legend()
+#plt.title("Shifted HGP sigma")
+#plt.savefig('Aheteroscedasticgsigma.pdf', dpi=200)
+plt.show()
 
+# %%
 
+# =============================================================================
+# yi = scaler.inverse_transform(y)
+# fmst4i = scaler.inverse_transform(fmst4)
+# #varfmst4i = scaler.inverse_transform(varfmst4)
+# sigs4i = sigs4 + ymean
+# 
+# # yi = y + ymean
+# # fmst4i = fmst4 + ymean
+# # #varfmst4i 
+# fmstps4i = fmst4i + numsig*sigs4i
+# fmstms4i = fmst4i - numsig*sigs4i
+# 
+# plt.plot(x,yi,'+', label = 'data')
+# plt.plot(x,fmst4i, label = 'HGP')
+# plt.fill(np.concatenate([x, x[::-1]]),
+#          np.concatenate([fmstps4i,
+#                         (fmstms4i)[::-1]]),
+#          alpha=0.3, fc='r', ec='None', label=labelfillj)
+# plt.title("Reshifted HGP")
+# plt.show()
+# # 
+# plt.plot(x,sigs4i, label = 'data')
+# plt.title("Reshifted HGP sigma")
+# # #plt.plot(x,fmst4i, label = 'HGP')
+# plt.show()
+# =============================================================================
 
 
