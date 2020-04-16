@@ -33,13 +33,13 @@ reachcalculation = False
 
 
 
-asediffvar = 1e-6
+asediffvar = 3e-6
 TRxSNR = db2lin(26) # TRX SNR [TRxdiffmean = db2lin(1.0)
 TRxdiffvar = 0.252
 snrdiffvar = 0.5
-powerdiffvar = 0.2
+powerdiffvar = 0.0
 #numpoints = 50
-numpoints = 1000
+numpoints = 200
 
 def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam, addnoise ):
     
@@ -456,18 +456,16 @@ np.savetxt('SNRpath1.csv', path1snr, delimiter=',')
 # %% obtain noise variation of data approximately 
 
 #sigsam = [ np.amax(path1snr[i:i+20]) - np.amix(path1snr[i:i+20]) for i in range(0,) ]
-n = 50
+n = int(float(numpoints)/20.0)
 snrsam = [path1snr[i:i + n] for i in range(0, np.size(path1snr), n)]
-sigsam = [(np.amax(snrsam[i]) - np.amin(snrsam[i]))*0.68 for i in range(np.size(snrsam,0))]
+sigsam = [np.var(snrsam[i])**0.5 for i in range(np.size(snrsam,0))]
 Pchsig = np.linspace(PchdBmopts[0],PchdBmopts[numpoints-1], np.size(snrsam,0))
 plt.plot(Pchsig,sigsam,'o')
 plt.xlabel("Pch (dBm)")
 plt.ylabel("sigma (dB)")
 plt.title("Approximate sigma variation")
-plt.savefig('approxsigvar.png', dpi=200)
+#plt.savefig('approxsigvar.png', dpi=200)
 plt.show()
-
-
 
 # %%
 
