@@ -309,21 +309,20 @@ plt.show()
 
 # %% plot the approximate noise variance 
 
-# =============================================================================
-# ns = int(float(n)/10.0)
-# snrsam = [y[i:i + ns] for i in range(0, np.size(y), ns)]
-# sigsam = [np.var(snrsam[i]) for i in range(np.size(snrsam,0))]
-# xsig = np.linspace(x[0],x[n-1], np.size(snrsam,0))
-# yp = np.polyfit(xsig.reshape(ns),sigsam,2)
-# pol = np.poly1d(yp)
-# plt.plot(xsig,sigsam,'o')
-# plt.plot(xsig,pol(xsig))
-# plt.xlabel("$x$")
-# plt.ylabel("$\sigma^2$")
-# plt.title("Approximate sigma variation")
-# #plt.savefig('approxsigvar.png', dpi=200)
-# plt.show()
-# =============================================================================
+ns = int(float(n)/10.0)
+ysam = [yraw[i:i + ns] for i in range(0, np.size(y), ns)]
+varsam = [np.var(ysam[i]) for i in range(np.size(ysam,0))]
+sigsam = [i**0.5 for i in varsam]
+xsig = np.linspace(x[0],x[n-1], np.size(ysam,0))
+yp = np.polyfit(xsig.reshape(np.size(ysam,0)),varsam,2)
+pol = np.poly1d(yp)
+plt.plot(xsig,varsam,'o')
+plt.plot(xsig,pol(xsig))
+plt.xlabel("$x$")
+plt.ylabel("$\sigma^2$")
+plt.title("Approximate sigma variation")
+#plt.savefig('approxsigvar.png', dpi=200)
+plt.show()
 
 # %%  plotting
 ind = 6
@@ -351,9 +350,9 @@ plt.fill(np.concatenate([x, x[::-1]]),
 plt.show()
 
 plt.plot(x,varfmst4,label='heteroscedastic GP')
-#plt.plot(x,sigma,label='SKLearn')
+plt.plot(xsig, varsam, 'o')
 plt.xlabel('$x$')
-plt.ylabel('$\sigma$')
+plt.ylabel('$\sigma^2$')
 plt.legend()
 #plt.title("Shifted HGP sigma")
 #plt.savefig('Aheteroscedasticgsigma.pdf', dpi=200)
