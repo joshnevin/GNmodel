@@ -20,8 +20,8 @@ from scipy.stats import norm
 # 
 #y = np.genfromtxt(open("yhetdata.csv", "r"), delimiter=",", dtype =float)
 #x = np.genfromtxt(open("xhetdata.csv", "r"), delimiter=",", dtype =float)
-#x = np.genfromtxt(open("PchdBmopts.csv", "r"), delimiter=",", dtype =float)
-#y = np.genfromtxt(open("SNRpath1.csv", "r"), delimiter=",", dtype =float)
+x = np.genfromtxt(open("PchdBmopts.csv", "r"), delimiter=",", dtype =float)
+y = np.genfromtxt(open("SNRpath1.csv", "r"), delimiter=",", dtype =float)
 # =============================================================================
 #numpoints = 100
 #x = np.linspace(0,1,numpoints)
@@ -42,13 +42,13 @@ from scipy.stats import norm
 # =============================================================================
 
 # data used by Williams 
-numpoints = 200
-x = np.linspace(0,np.pi,numpoints)
-wmean = np.sin(2.5*x)*np.sin(1.5*x)
-wsd = 0.01 + 0.25*(1 - np.sin(2.5*x))**2
-y = np.random.normal(wmean, wsd)
-y = y.reshape(-1,1)
-x = x.reshape(-1,1)
+#numpoints = 200
+#x = np.linspace(0,np.pi,numpoints)
+#wmean = np.sin(2.5*x)*np.sin(1.5*x)
+#wsd = 0.01 + 0.25*(1 - np.sin(2.5*x))**2
+#y = np.random.normal(wmean, wsd)
+#y = y.reshape(-1,1)
+#x = x.reshape(-1,1)
 
 plt.plot(x,y,'+')
 plt.show()
@@ -187,7 +187,8 @@ def GPRfit(xs,k1,k2,sig):
         v = solve(L,T(Ks[:,i]))
         varfmst[i] = Kss[i,i] - mul(T(v),v)  + sig**2
     lmlopt = -0.5*mul(T(y),al) - np.trace(np.log(L)) - 0.5*n*np.log(2*np.pi)
-    return fmst, varfmst[::-1], lmlopt
+    #return fmst, varfmst[::-1], lmlopt
+    return fmst, varfmst, lmlopt
 
 def GPRfith(xs,k1,k2,R,Rs):
     Ky = sqexp(x,None,k1,k2**0.5)[0] + R
@@ -201,23 +202,8 @@ def GPRfith(xs,k1,k2,R,Rs):
         v = solve(L,T(Ks[:,i]))
         varfmst[i] = Kss[i,i] - mul(T(v),v)  + Rs[i,i]
     lmlopt = -0.5*mul(T(y),al) - np.trace(np.log(L)) - 0.5*n*np.log(2*np.pi)
-    return fmst, varfmst[::-1], lmlopt
-
-def GPRfith2(xs,k1,k2,R,Rs):
-    Ky = sqexp(x,None,k1,k2**0.5)[0] + R
-    Ks = sqexp(xs, x, k1, k2**0.5)
-    Kss = sqexp(xs, None, k1, k2)[0]
-    L = cholesky(Ky)
-    al = solve(T(L), solve(L,y))
-    fmst = mul(Ks,al)
-    varfmst = np.empty([n,1])
-    varfmst2 = np.empty([n,1])
-    for i in range(np.size(xs)):
-        v = solve(L,T(Ks[:,i]))
-        varfmst[i] = Kss[i,i] - mul(T(v),v)  + Rs[i,i]
-        varfmst2[i] = Kss[i,i] - mul(T(v),v)  
-    lmlopt = -0.5*mul(T(y),al) - np.trace(np.log(L)) - 0.5*n*np.log(2*np.pi)
-    return fmst, varfmst[::-1], lmlopt, varfmst2[::-1]
+    #return fmst, varfmst[::-1], lmlopt
+    return fmst, varfmst, lmlopt
 
 
 def hypopt(y, numrestarts):
@@ -332,17 +318,6 @@ plt.show()
 varerr = varfmst**0.5 - sigma
 fiterr = fmst - ystar
 
-# %%
-
-s = 150
-z = np.empty([n,1])
-for j in range(n):
-    np.random.seed()
-    normdraw = normal(fmst[j], (varfmst[j] - sig1**2)**0.5, s).reshape(s,1)
-    z[j] = np.log((1/s)*0.5*sum((y[j] - normdraw)**2))
-    
-plt.plot(normdraw)
-plt.show()
 
 # %% Steps 2-4 in a loop - iterate until convergence 
 
@@ -419,10 +394,10 @@ def hetloop(fmst,varfmst,numiters):
     return fmstf,varfmstf, lmloptf, MSE, NLPD 
 
 def hetloopSK(fmst,varfmst,numiters):
-    s = 500
+    s = 150
     #k1is3, k2is3, k1is4,k2is4  =  np.random.uniform(1e-2,1e2,4)
     MSE = np.empty([numiters,1])
-    NLPD = np.empty([numiters,1])
+    #NLPD = np.empty([numiters,1])
     fmstf = np.empty([numiters,n])
     varfmstf = np.empty([numiters,n])
     lmloptf = np.empty([numiters,1])
@@ -459,13 +434,13 @@ def hetloopSK(fmst,varfmst,numiters):
         #    continue 
         #k1s4 = step4res[0][0]
         #k2s4 = step4res[0][1]
-        k1s4, k2s4 = hypopth(y,10,R)
+        k1s4, k2s4 = hypopth(y,5,R)
         fmst4, varfmst4, lmlopt4 = GPRfith(x,k1s4,k2s4,R,R)
         # test for convergence 
         MSE[i] = (1/n)*sum(((y-fmst4)**2)/np.var(y))
-        NLPD[i] = sum([(1/n)*(-np.log(norm.pdf(x[j], fmst4[j], varfmst4[j]**0.5))) for j in range(n) ])
+        #NLPD[i] = sum([(1/n)*(-np.log(norm.pdf(x[j], fmst4[j], varfmst4[j]**0.5))) for j in range(n) ])
         print("MSE = " + str(MSE[i]))
-        print("NLPD = " + str(NLPD[i]))
+        #print("NLPD = " + str(NLPD[i]))
         print("finished iteration " + str(i+1))
         fmstf[i,:] = fmst4.reshape(n)
         varfmstf[i,:] = varfmst4.reshape(n)
@@ -476,7 +451,7 @@ def hetloopSK(fmst,varfmst,numiters):
         #k2is3 = k2s4
         i = i + 1
         
-    return fmstf,varfmstf, lmloptf, MSE, NLPD 
+    return fmstf,varfmstf, lmloptf, MSE #  , NLPD 
 
 
 #kernel1 = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-3, 1e3)) + W(1.0, (1e-5, 1e5))
@@ -489,10 +464,10 @@ var1 = (sigma1**2 + np.var(y))
 #sigma1 = np.reshape(sigma1,(np.size(sigma1), 1))
 
 # %%
-numiters = 30
+numiters = 15
 #fmstf,varfmstf, lmloptf, MSE, NLPD = hetloop(fmst,varfmst,numiters)
 #fmstf,varfmstf, lmloptf, MSE, NLPD = hetloop(fmst,varfmst-(sig1**2),numiters)
-fmstf,varfmstf, lmloptf, MSE, NLPD = hetloopSK(ystar1,var1,numiters)
+fmstf,varfmstf, lmloptf, MSE = hetloopSK(ystar1,var1,numiters)
 # %% learning curve
 numiterations = np.linspace(1,numiters,numiters,dtype=int)
 plt.plot(numiterations,MSE)
@@ -501,11 +476,13 @@ plt.xlabel('Iterations')
 plt.savefig('AMSE.png', dpi=200)
 plt.show()
 
-plt.plot(numiterations,NLPD)
-plt.ylabel('NLPD')  
-plt.xlabel('Iterations')
-plt.savefig('ANLPD.png', dpi=200)
-plt.show()
+# =============================================================================
+# plt.plot(numiterations,NLPD)
+# plt.ylabel('NLPD')  
+# plt.xlabel('Iterations')
+# plt.savefig('ANLPD.png', dpi=200)
+# plt.show()
+# =============================================================================
 
 plt.plot(numiterations, lmloptf)
 plt.ylabel('LML')  
@@ -516,7 +493,7 @@ plt.show()
 # %% plot the approximate noise variance 
 
 ns = int(float(n)/10.0)
-ysam = [yraw[i:i + ns] for i in range(0, np.size(y), ns)]
+ysam = [y[i:i + ns] for i in range(0, np.size(y), ns)]
 varsam = [np.var(ysam[i]) for i in range(np.size(ysam,0))]
 sigsam = [i**0.5 for i in varsam]
 xsig = np.linspace(x[0],x[n-1], np.size(ysam,0))
@@ -534,7 +511,7 @@ plt.show()
 ind = numiters - 1
 
 fmst4 = fmstf[ind]
-varfmst4 = varfmstf[ind][::-1]
+varfmst4 = varfmstf[ind]
 lmlopt4 = lmloptf[ind]
  
 sigs4 = varfmst4**0.5
@@ -550,7 +527,7 @@ plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([fmstps4,
                         (fmstms4)[::-1]]),
          alpha=0.3, fc='r', ec='None', label=labelfillj)
-#plt.title("Shifted HGP")
+plt.title("Shifted HGP")
 #plt.savefig('Aheteroscedasticgdata.pdf', dpi=200)
 plt.show()
 
@@ -573,7 +550,7 @@ plt.legend()
 plt.show()
 
 
-# 
+# %%
 
 labelfillj2 = str(numsig) + '$\sigma$'
 # =============================================================================
