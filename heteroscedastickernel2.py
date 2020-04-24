@@ -16,12 +16,14 @@ from numpy.random import normal
 from scipy.optimize import minimize
 from scipy.spatial.distance import pdist, cdist, squareform
 from scipy.stats import norm
-
+from scipy import special
 # 
 #y = np.genfromtxt(open("yhetdata.csv", "r"), delimiter=",", dtype =float)
 #x = np.genfromtxt(open("xhetdata.csv", "r"), delimiter=",", dtype =float)
-x = np.genfromtxt(open("PchdBmopts.csv", "r"), delimiter=",", dtype =float)
-y = np.genfromtxt(open("SNRpath1.csv", "r"), delimiter=",", dtype =float)
+#x = np.genfromtxt(open("PchdBmopts.csv", "r"), delimiter=",", dtype =float)
+#y = np.genfromtxt(open("SNRpath1.csv", "r"), delimiter=",", dtype =float)
+x = np.genfromtxt(open("Pchripple.csv", "r"), delimiter=",", dtype =float)
+y = np.genfromtxt(open("SNRripple.csv", "r"), delimiter=",", dtype =float)
 # =============================================================================
 #numpoints = 100
 #x = np.linspace(0,1,numpoints)
@@ -57,7 +59,7 @@ yraw = y
 ymean = np.mean(y)
 n = np.size(x)
 scaler = StandardScaler().fit(y)
-#y = scaler.transform(y)
+y = scaler.transform(y)
 
 numsig = 2
 
@@ -447,7 +449,7 @@ def hetloopSK(fmst,varfmst,numiters,numrestarts):
         test3 = np.empty([n,1])
         for k in range(n):
             test3[k] = -np.log(norm.pdf(x[k], fmst[k], varfmst[k]**0.5))
-        print(norm.pdf(x[k], fmst[k], varfmst[k]**0.5))
+        print("NLPD argument " + str(norm.pdf(x[k], fmst[k], varfmst[k]**0.5)))
         NLPD[i] = sum(test3)*(1/n)
         print("MSE = " + str(MSE[i]))
         print("NLPD = " + str(NLPD[i]))
@@ -476,7 +478,7 @@ var1 = (sigma1**2 + np.var(y))
 
 # %%
 numiters = 20
-numrestarts = 10
+numrestarts = 5
 #fmstf,varfmstf, lmloptf, MSE, NLPD = hetloop(fmst,varfmst,numiters)
 #fmstf,varfmstf, lmloptf, MSE, NLPD = hetloop(fmst,varfmst-(sig1**2),numiters)
 fmstf,varfmstf, lmloptf, MSE, rf,NLPD = hetloopSK(ystar1,var1,numiters,numrestarts)
@@ -506,7 +508,7 @@ plt.show()
 
 # %% plot the approximate noise variance 
 
-ns = int(float(n)/10.0)
+ns = int(float(n)/5.0)
 ysam = [y[i:i + ns] for i in range(0, np.size(y), ns)]
 varsam = [np.var(ysam[i]) for i in range(np.size(ysam,0))]
 sigsam = [i**0.5 for i in varsam]
@@ -531,6 +533,20 @@ lmlopt4 = lmloptf[ind]
 sigs4 = varfmst4**0.5
 fmstps4 = fmst4 + numsig*sigs4
 fmstms4 = fmst4 - numsig*sigs4
+
+
+numsig2 = 3
+fmstps42 = fmst4 + numsig2*sigs4
+fmstms42 = fmst4 - numsig2*sigs4
+
+numsig3 = 4
+fmstps43 = fmst4 + numsig3*sigs4
+fmstms43 = fmst4 - numsig3*sigs4
+
+numsig4 = 5
+fmstps44 = fmst4 + numsig4*sigs4
+fmstms44 = fmst4 - numsig4*sigs4
+
 yana = 2*np.sin(2*np.pi*x)
 plt.plot(x,y,'+')
 plt.plot(x,fmst4, label = 'HGP')
@@ -579,40 +595,127 @@ plt.show()
 # =============================================================================
 # labelfillj2 = str(numsig) + '$\sigma$'
 # # =============================================================================
-# yi = scaler.inverse_transform(y)
-# test = yi - yraw
-# fmst4i = scaler.inverse_transform(fmst4)
-# #varfmst4i = scaler.inverse_transform(varfmst4)
-# 
-# fmstps4i = fmst4i + numsig*sigs4
-# fmstms4i = fmst4i - numsig*sigs4
-# #yana = 2*np.sin(2*np.pi*x)
-# plt.plot(x,yi,'+')
-# plt.plot(x,fmst4i, label = 'HGP')
-# #plt.plot(x,yana, label = '$2sin(2{\pi}x)$')
-# # plt.fill(np.concatenate([x, x[::-1]]),
-# #          np.concatenate([fmstps4i,
-# #                         (fmstms4i)[::-1]]),
-# #          alpha=0.3, fc='r', ec='None', label=labelfillj)
-# plt.fill(np.concatenate([x, x[::-1]]),
-#          np.concatenate([fmstps4i,
-#                         (fmstms4i)[::-1]]),
-#          alpha=0.3, fc='r', ec='None', label=labelfillj2)
-# plt.title("Raw HGP")
-# plt.legend()
-# plt.savefig('Aheteroscedasticgdatarescaled.pdf', dpi=200)
-# plt.show()
+yi = scaler.inverse_transform(y)
+fmst4i = scaler.inverse_transform(fmst4)
+fmstps4i = scaler.inverse_transform(fmstps4)
+fmstms4i = scaler.inverse_transform(fmstms4)
+
+fmstps4i2 = scaler.inverse_transform(fmstps42)
+fmstms4i2 = scaler.inverse_transform(fmstms42)
+fmstps4i3 = scaler.inverse_transform(fmstps43)
+fmstms4i3 = scaler.inverse_transform(fmstms43)
+fmstps4i4 = scaler.inverse_transform(fmstps44)
+fmstms4i4 = scaler.inverse_transform(fmstms44)
+
+plt.plot(x, yi,'+')
+plt.plot(x, fmst4i, label = 'HGP')
 # =============================================================================
-# # 
-# plt.plot(x,sigs4i, label = 'data')
-# plt.title("Reshifted HGP sigma")
-# # #plt.plot(x,fmst4i, label = 'HGP')
-# plt.show()
-# =============================================================================
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([fmstps4i,
+                        (fmstms4i)[::-1]]),
+         alpha=0.3, fc='b', ec='None', label='2 sigma')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([fmstps4i2,
+                        (fmstps4i)[::-1]]),
+         alpha=0.3, fc='r', ec='None', label='3 sigma')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([fmstms4i,
+                        (fmstms4i2)[::-1]]),
+         alpha=0.3, fc='r', ec='None')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([fmstps4i3,
+                        (fmstps4i2)[::-1]]),
+         alpha=0.3, fc='y', ec='None', label='4 sigma')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([fmstms4i2,
+                        (fmstms4i3)[::-1]]),
+         alpha=0.3, fc='y', ec='None')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([fmstps4i4,
+                        (fmstps4i3)[::-1]]),
+         alpha=0.3, fc='g', ec='None', label='5 sigma')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([fmstms4i3,
+                        (fmstms4i4)[::-1]]),
+         alpha=0.3, fc='g', ec='None')
+plt.xlabel('$P_{ch}$(dBm)')  
+plt.ylabel('SNR(dB)')
+plt.legend()
+plt.savefig('AHGPfit.pdf', dpi=200)
+plt.show()
+
+# %% BER transform
+
+M = 16
+def BERcalc(M, SNR):
+    if M == 4: 
+        BER = 0.5*special.erfc(SNR**0.5)
+        #BERrs = 0.5*special.erfc(SNRRSr**0.5)
+        #BERrs2 = 0.5*special.erfc(SNRRS2r**0.5)
+         
+    elif M == 16:
+        BER = (3/8)*special.erfc(((2/5)*SNR)**0.5) + (1/4)*special.erfc(((18/5)*SNR)**0.5) - (1/8)*special.erfc((10*SNR)**0.5)
+        #BERrs = (3/8)*special.erfc(((2/5)*SNRRSr)**0.5) + (1/4)*special.erfc(((18/5)*SNRRSr)**0.5) - (1/8)*special.erfc((10*SNRRSr)**0.5)
+        #BERrs2 = (3/8)*special.erfc(((2/5)*SNRRS2r)**0.5) + (1/4)*special.erfc(((18/5)*SNRRS2r)**0.5) - (1/8)*special.erfc((10*SNRRS2r)**0.5)
+         
+    elif M == 64:
+        BER = (7/24)*special.erfc(((1/7)*SNR)**0.5) + (1/4)*special.erfc(((9/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) + (1/24)*special.erfc(((81/7)*SNR)**0.5) - (1/24)*special.erfc(((169/7)*SNR)**0.5) 
+        #BERrs = (7/24)*special.erfc(((1/7)*SNRRSr)**0.5) + (1/4)*special.erfc(((9/7)*SNRRSr)**0.5) - (1/24)*special.erfc(((25/7)*SNRRSr)**0.5) - (1/24)*special.erfc(((25/7)*SNRRSr)**0.5) + (1/24)*special.erfc(((81/7)*SNRRSr)**0.5) - (1/24)*special.erfc(((169/7)*SNRRSr)**0.5) 
+        #BERrs2 = (7/24)*special.erfc(((1/7)*SNRRS2r)**0.5) + (1/4)*special.erfc(((9/7)*SNRRS2r)**0.5) - (1/24)*special.erfc(((25/7)*SNRRS2r)**0.5) - (1/24)*special.erfc(((25/7)*SNRRS2r)**0.5) + (1/24)*special.erfc(((81/7)*SNRRS2r)**0.5) - (1/24)*special.erfc(((169/7)*SNRRS2r)**0.5) 
+    return BER
 
    
+By= BERcalc(M,yi)
+Bfmst = BERcalc(M,fmst4i)
+Bfmstps = BERcalc(M, fmstps4i)
+Bfmstps2 = BERcalc(M, fmstps4i2)
+Bfmstps3 = BERcalc(M, fmstps4i3)
+Bfmstps4 = BERcalc(M, fmstps4i4)
+Bfmstms = BERcalc(M, fmstms4i)
+Bfmstms2 = BERcalc(M, fmstms4i2)
+Bfmstms3 = BERcalc(M, fmstms4i3)
+Bfmstms4 = BERcalc(M, fmstms4i4)
 
-    
+
+
+plt.plot(x,By,'+')
+plt.plot(x, Bfmst, label = 'HGP')
+# =============================================================================
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([Bfmstps,
+                        (Bfmstms)[::-1]]),
+         alpha=0.3, fc='b', ec='None', label='2 sigma')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([Bfmstps2,
+                        (Bfmstps)[::-1]]),
+         alpha=0.3, fc='r', ec='None', label='3 sigma')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([Bfmstms,
+                        (Bfmstms2)[::-1]]),
+         alpha=0.3, fc='r', ec='None')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([Bfmstps3,
+                        (Bfmstps2)[::-1]]),
+         alpha=0.3, fc='y', ec='None', label='4 sigma')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([Bfmstms2,
+                        (Bfmstms3)[::-1]]),
+         alpha=0.3, fc='y', ec='None')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([Bfmstps4,
+                        (Bfmstps3)[::-1]]),
+         alpha=0.3, fc='g', ec='None', label='5 sigma')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([Bfmstms3,
+                        (Bfmstms4)[::-1]]),
+         alpha=0.3, fc='g', ec='None')
+plt.xlabel('$P_{ch}$(dBm)')  
+plt.ylabel('BER')
+plt.legend()
+plt.savefig('AHGPber.pdf', dpi=200)
+plt.show()
+
+
     
     
     
