@@ -17,6 +17,10 @@ from scipy.optimize import minimize
 from scipy.spatial.distance import pdist, cdist, squareform
 from scipy.stats import norm
 from scipy import special
+import multiprocessing
+from GHquad import GHquad
+
+MIcalc = False
 # 
 #y = np.genfromtxt(open("yhetdata.csv", "r"), delimiter=",", dtype =float)
 #x = np.genfromtxt(open("xhetdata.csv", "r"), delimiter=",", dtype =float)
@@ -613,11 +617,11 @@ plt.plot(x, fmst4i, label = 'HGP')
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([fmstps4i,
                         (fmstms4i)[::-1]]),
-         alpha=0.3, fc='b', ec='None', label='2 sigma')
+         alpha=0.3, fc='b', ec='None', label='$2 \sigma$')
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([fmstps4i2,
                         (fmstps4i)[::-1]]),
-         alpha=0.3, fc='r', ec='None', label='3 sigma')
+         alpha=0.3, fc='r', ec='None', label='$3 \sigma$')
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([fmstms4i,
                         (fmstms4i2)[::-1]]),
@@ -625,7 +629,7 @@ plt.fill(np.concatenate([x, x[::-1]]),
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([fmstps4i3,
                         (fmstps4i2)[::-1]]),
-         alpha=0.3, fc='y', ec='None', label='4 sigma')
+         alpha=0.3, fc='y', ec='None', label='$4 \sigma$')
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([fmstms4i2,
                         (fmstms4i3)[::-1]]),
@@ -633,7 +637,7 @@ plt.fill(np.concatenate([x, x[::-1]]),
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([fmstps4i4,
                         (fmstps4i3)[::-1]]),
-         alpha=0.3, fc='g', ec='None', label='5 sigma')
+         alpha=0.3, fc='g', ec='None', label='$5 \sigma$')
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([fmstms4i3,
                         (fmstms4i4)[::-1]]),
@@ -684,11 +688,11 @@ plt.plot(x, Bfmst, label = 'HGP')
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([Bfmstps,
                         (Bfmstms)[::-1]]),
-         alpha=0.3, fc='b', ec='None', label='2 sigma')
+         alpha=0.3, fc='b', ec='None', label='$2 \sigma$')
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([Bfmstps2,
                         (Bfmstps)[::-1]]),
-         alpha=0.3, fc='r', ec='None', label='3 sigma')
+         alpha=0.3, fc='r', ec='None', label='$3 \sigma$')
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([Bfmstms,
                         (Bfmstms2)[::-1]]),
@@ -696,7 +700,7 @@ plt.fill(np.concatenate([x, x[::-1]]),
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([Bfmstps3,
                         (Bfmstps2)[::-1]]),
-         alpha=0.3, fc='y', ec='None', label='4 sigma')
+         alpha=0.3, fc='y', ec='None', label='$4 \sigma$')
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([Bfmstms2,
                         (Bfmstms3)[::-1]]),
@@ -704,7 +708,7 @@ plt.fill(np.concatenate([x, x[::-1]]),
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([Bfmstps4,
                         (Bfmstps3)[::-1]]),
-         alpha=0.3, fc='g', ec='None', label='5 sigma')
+         alpha=0.3, fc='g', ec='None', label='$5 \sigma$')
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([Bfmstms3,
                         (Bfmstms4)[::-1]]),
@@ -715,7 +719,121 @@ plt.legend()
 plt.savefig('AHGPber.pdf', dpi=200)
 plt.show()
 
-
+# %% ================================ Mutual information transform ===========================================
+  
+# import constellation shapes from MATLAB-generated csv files 
+if MIcalc:  
+    Qam4r = np.genfromtxt(open("qam4r.csv", "r"), delimiter=",", dtype =float)
+    Qam4i = np.genfromtxt(open("qam4i.csv", "r"), delimiter=",", dtype =float)
+    Qam16r = np.genfromtxt(open("qam16r.csv", "r"), delimiter=",", dtype =float)
+    Qam16i = np.genfromtxt(open("qam16i.csv", "r"), delimiter=",", dtype =float)
+    Qam32r = np.genfromtxt(open("qam32r.csv", "r"), delimiter=",", dtype =float)
+    Qam32i = np.genfromtxt(open("qam32i.csv", "r"), delimiter=",", dtype =float)
+    Qam64r = np.genfromtxt(open("qam64r.csv", "r"), delimiter=",", dtype =float)
+    Qam64i = np.genfromtxt(open("qam64i.csv", "r"), delimiter=",", dtype =float)
+    Qam128r = np.genfromtxt(open("qam128r.csv", "r"), delimiter=",", dtype =float)
+    Qam128i = np.genfromtxt(open("qam128i.csv", "r"), delimiter=",", dtype =float)
+    
+    Qam4 = Qam4r + 1j*Qam4i
+    Qam16 = Qam16r + 1j*Qam16i
+    Qam32 = Qam32r + 1j*Qam32i
+    Qam64 = Qam64r + 1j*Qam64i
+    Qam128 = Qam128r + 1j*Qam128i
+    #  ================================ Estimate MI ================================ 
+    # set modulation format order and number of terms used in Gauss-Hermite quadrature
+    M = 16
+    L = 6
+    
+    def MIGHquad(SNR):
+        if M == 4:
+            Ps = np.mean(np.abs(Qam4**2))
+            X = Qam4
+        elif M == 16:
+            Ps = np.mean(np.abs(Qam16**2))
+            X = Qam16
+        elif M == 32:
+            Ps = np.mean(np.abs(Qam32**2))
+            X = Qam32
+        elif M == 64:
+            Ps = np.mean(np.abs(Qam64**2))
+            X = Qam64
+        elif M == 128:
+            Ps = np.mean(np.abs(Qam128**2))
+            X = Qam128
+        else:
+            print("unrecogised M")
+        sigeff2 = Ps/(10**(SNR/10))
+        Wgh = GHquad(L)[0]
+        Rgh = GHquad(L)[1]
+        sum_out = 0
+        for ii in range(M):
+            sum_in = 0
+            for l1 in range(L):      
+                sum_inn = 0
+                for l2 in range(L):
+                    sum_exp = 0
+                    for jj in range(M):  
+                        arg_exp = np.linalg.norm(X[ii]-X[jj])**2 + 2*(sigeff2**0.5)*np.real( (Rgh[l1]+1j*Rgh[l2])*(X[ii]-X[jj]));
+                        sum_exp = np.exp(-arg_exp/sigeff2) + sum_exp
+                    sum_inn = Wgh[l2]*np.log2(sum_exp) + sum_inn
+                sum_in = Wgh[l1]*sum_inn + sum_in
+            sum_out = sum_in + sum_out
+        return np.log2(M)- (1/(M*np.pi))*sum_out 
+    
+    def findMI(SNR):
+        with multiprocessing.Pool() as pool:
+            Ixy = pool.map(MIGHquad, SNR) 
+        return Ixy
+    
+    MIy = findMI(yi)
+    MIfmst = findMI(fmst4i)
+    MIfmstps = findMI(fmstps4i)
+    MIfmstps2 = findMI(fmstps4i2)
+    MIfmstps3 = findMI(fmstps4i3)
+    MIfmstps4 = findMI(fmstps4i4)
+    MIfmstms = findMI(fmstms4i)
+    MIfmstms2 = findMI(fmstms4i2)
+    MIfmstms3 = findMI(fmstms4i3)
+    MIfmstms4 = findMI(fmstms4i4)
+    
+    # %%
+    
+    plt.plot(x, MIy,'+')
+    plt.plot(x, MIfmst, label = 'HGP')
+    # =============================================================================
+    plt.fill(np.concatenate([x, x[::-1]]),
+             np.concatenate([MIfmstps,
+                            (MIfmstms)[::-1]]),
+             alpha=0.3, fc='b', ec='None', label='$2 \sigma$')
+    plt.fill(np.concatenate([x, x[::-1]]),
+             np.concatenate([MIfmstps2,
+                            (MIfmstps)[::-1]]),
+             alpha=0.3, fc='r', ec='None', label='$3 \sigma$')
+    plt.fill(np.concatenate([x, x[::-1]]),
+             np.concatenate([MIfmstms,
+                            (MIfmstms2)[::-1]]),
+             alpha=0.3, fc='r', ec='None')
+    plt.fill(np.concatenate([x, x[::-1]]),
+             np.concatenate([MIfmstps3,
+                            (MIfmstps2)[::-1]]),
+             alpha=0.3, fc='y', ec='None', label='$4 \sigma$')
+    plt.fill(np.concatenate([x, x[::-1]]),
+             np.concatenate([MIfmstms2,
+                            (MIfmstms3)[::-1]]),
+             alpha=0.3, fc='y', ec='None')
+    plt.fill(np.concatenate([x, x[::-1]]),
+             np.concatenate([MIfmstps4,
+                            (MIfmstps3)[::-1]]),
+             alpha=0.3, fc='g', ec='None', label='$5 \sigma$')
+    plt.fill(np.concatenate([x, x[::-1]]),
+             np.concatenate([MIfmstms3,
+                            (MIfmstms4)[::-1]]),
+             alpha=0.3, fc='g', ec='None')
+    plt.xlabel('$P_{ch}$(dBm)')  
+    plt.ylabel('MI (bits/sym)')
+    plt.legend()
+    plt.savefig('AHGPMI.pdf', dpi=200)
+    plt.show()
     
     
     
