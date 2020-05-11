@@ -10,44 +10,38 @@
 # %% ################### imports ####################
 import numpy as np
 import matplotlib.pyplot as plt
-#import komm
 import multiprocessing
 import time 
-import pystan
 from scipy import special
-from scipy.stats import iqr
+#from scipy.stats import iqr
 #from sklearn.gaussian_process import GaussianProcessRegressor
 #from sklearn.gaussian_process.kernels import RBF
 from GHquad import GHquad
 from NFmodelGNPy import nf_model
 from NFmodelGNPy import lin2db
 from NFmodelGNPy import db2lin
-#from scipy.stats import invgamma
-#from scipy.stats import gamma
+from Routingalgorithm import dijkstra
+import random
 
 NDFISimport = True
 repairlossimport = True
 constellationimport = True
-reachcalculation = False
+reachcalculation = True
 #addnoise = True
 
 
 
 asediffvar = 3e-6
 TRxSNR = db2lin(26) # TRX SNR [TRxdiffmean = db2lin(1.0)
-TRxdiffvar = 0.252
+TRxdiffvar = db2lin(2)
 snrdiffvar = 0.5
-powerdiffvar = 0.0
+powerdiffvar = 0.5
 #numpoints = 50
-numpoints = 200
+numpoints = 75
 
 def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam, addnoise ):
-    
-    
-    #  ################### equipment characteristics ####################
-
+    #################### equipment characteristics ####################
     lam = 1550 # operating wavelength centre [nm]
-
     f = 299792458/(lam*1e-9) # operating frequency [Hz]
     c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
     Rs = 32 # symbol rate [GBaud]
@@ -68,24 +62,19 @@ def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam, addnoise ):
     Gwdm = (Pch*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
     GwdmRS = Pch/(BchRS*1e9)
     GwdmRS2 = Pch/(BchRS2*1e9)
+    
     ## equation 13, Gnli(0) for single-span Nyquist-WDM 
-
     GnliEq13 = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))
-
     ## equation 15, Gnli(0) for single-span non-Nyquist-WDM 
-
     GnliEq15 = 1e24*(8/27)*(gam**2)*(GwdmRS**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BchRS**2)*(NchRS**((2*BchRS)/Df))  ) )/(np.pi*beta2*Leffa ))
-
     GnliEq15v2 = 1e24*(8/27)*(gam**2)*(GwdmRS2**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BchRS2**2)*(NchRS2**((2*BchRS2)/Df2))  ) )/(np.pi*beta2*Leffa ))
 
     ## implement multiple spans using (7) 
-
     def nthHarmonic(N) : 
         harmonic = 1.00
         for i in range(2, N + 1) : 
             harmonic += 1 / i 
         return harmonic 
-
     if Ns == 1:
         epsilon = 0
         epsilonRS = 0
@@ -103,7 +92,6 @@ def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam, addnoise ):
     GnliEq15mul2 = GnliEq15v2*Ns**(1+epsilonRS2)   # implementation of (7) 
  
     # ASE noise bit 
-    
     G = al*Ls
     NFl = 10**(NF/10) 
     Gl = 10**(G/10) 
@@ -112,15 +100,13 @@ def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam, addnoise ):
     PasechO = NFl*h*f*(Gl - 1)*OSNRmeasBW*Ns # [W] the ASE noise power in the OSNR measurement BW, defined as Dlam = 0.1nm
     PasechRS = NFl*h*f*(Gl - 1)*BchRS*1e9*Ns # [W] the ASE noise power in one non-Nyquist channel across all spans
     PasechRS2 = NFl*h*f*(Gl - 1)*BchRS2*1e9*Ns
-    # SNR calc + plotting 
     
+    # SNR calc + plotting
     SNRanalytical = np.zeros(numpoints)
     SNRanalyticalO = np.zeros(numpoints)
     SNRanalyticalRS = np.zeros(numpoints)
     SNRanalyticalRS2 = np.zeros(numpoints)
     OSNRanalytical = np.zeros(numpoints)
-    
-    
     for i in range(numpoints):
         if addnoise:
             np.random.seed()
@@ -221,7 +207,6 @@ def main(Ls, Ns, NchNy, NchRS, NchRS2, al, D, PchdBm, NF, gam, addnoise ):
                 OSNRanalytical[i] = 10*np.log10((LF*Pch[i])/PasechO[i])
     return SNRanalytical, SNRanalyticalRS, SNRanalyticalRS2, OSNRanalytical, GnliEq13, epsilon, SNRanalyticalO
 
-
 # %% ================================ NDFIS data stuff  ===========================================
 if NDFISimport:
     NDFISdata = np.genfromtxt(open("NDFISdata.csv", "r"), delimiter=",", dtype =float)
@@ -267,17 +252,8 @@ if repairlossimport:
 counts, bins = np.histogram(NDFISlossnz, 20)
 countso, binso = np.histogram(NDFISlossoverallnz, 20)
 countsd, binsd = np.histogram(NDFISdispnz, 20)
-# =============================================================================
-#plt.hist(bins[:-1], bins, weights=counts)
-#plt.xlabel("loss (dB/km)")
-#plt.ylabel("freqeuncy")
-#plt.title("fibre loss")
-#plt.savefig('NDFISlosshist20.png', dpi=200)
-#plt.show()
-# =============================================================================
 
 # how to reconstruct histogram 
-
 # =============================================================================
 # xloss = [bins[i]*np.ones(np.size(counts))  for i in range(np.size(bins))   ]
 # xloss = np.reshape(xloss, np.size(xloss))
@@ -291,26 +267,20 @@ countsd, binsd = np.histogram(NDFISdispnz, 20)
 # plt.savefig('NDFISlosshist.png', dpi=200)
 # plt.show()
 # =============================================================================
-
-
 # %% random draws from histogram 
 
 countsnorm = np.zeros(np.size(counts))
 for i in range(np.size(countsnorm)):
     countsnorm[i] = counts[i]/np.sum(counts)
-
 countsnormo = np.zeros(np.size(countso))
 for i in range(np.size(countsnormo)):
     countsnormo[i] = countso[i]/np.sum(countso)
-    
 countsnormd = np.zeros(np.size(countsd))
 for i in range(np.size(countsnormd)):
     countsnormd[i] = countsd[i]/np.sum(countsd)
-    
 countsnormrep = np.zeros(np.size(countsrep))
 for i in range(np.size(countsnormrep)):
     countsnormrep[i] = countsrep[i]/np.sum(countsrep)
-
 def histdraw(counts, bins):
     np.random.seed()
     randnum = np.random.uniform(0,1)
@@ -321,17 +291,14 @@ def histdraw(counts, bins):
             drawnum = np.random.uniform(bins[i],bins[i+1])
             break
     return drawnum
-
-
 # %%  ================================ set params and call main ================================
-
 #dev = 1  # % deviation from baseline 
 PchdBm = np.linspace(-10, 10, num = numpoints, dtype =float) 
 #PchdBm = 0
 #alpha = 0.25
 Nspans = 3
 Lspans = 100
-num_breaks = 1 # set the number of fibre breaks
+num_breaks = 0 # set the number of fibre breaks
 num_years = (num_breaks*374)/(Nspans*Lspans) # expected number of years for this number of fibre breaks given a rate of 1 break/374km/year
 #alpha = NDFISlossnzmean
 alpha = 0.2
@@ -357,184 +324,166 @@ g1min = nf_model(gain_min,gain_max,nf_min,nf_max )[4]
 g1a = gain_target - deltap - (gain_max - gain_target)
 NF = lin2db(db2lin(nf1) + db2lin(nf2)/db2lin(g1a))  
 #NF = 5.0
-# =========================== differing spans bit ==================================
 
-def spanvar(PchdBm):
-    alpha = np.zeros(Nspans)
-    Disp = np.zeros(Nspans)
-    ep = np.zeros(Nspans)
-    gain_target = np.zeros(Nspans)
-    Gnlispanvar = np.zeros((Nspans,numpoints))
-    ep = np.zeros((Nspans,numpoints))
+
+
+# %% SNR variation due to ripple emulation
+
+ripplepertmax = 0.1
+ripplepertmin = -0.1
+ripplepertmaxpowerdep = 0.4
+ripplepertminpowerdep = -1.0
+
+def rippledatagen(PchdBm,numspans):
+    Gnli = np.empty([numspans,numpoints])
+    ep = np.empty([numspans,1])
     lam = 1550
     Rs = 32
     f = 299792458/(lam*1e-9) # operating frequency [Hz]
     h = 6.63*1e-34  # Planck's constant [Js] 
-    for i in range(Nspans):  # draw the span loss from a distribution 
-        alpha[i] = histdraw(countsnorm, bins) # + histdraw(countsnormrep, binsrep)
-        Disp[i] = histdraw(countsnormd, binsd)
-    gain_target = alpha*Lspans 
-    g1a = gain_target - deltap*np.ones(Nspans) - (gain_max*np.ones(Nspans) - gain_target)
-    NF = lin2db(db2lin(nf1) + db2lin(nf2)/db2lin(g1a)) 
-    NFl = 10**(NF/10) 
-    Gl = 10**(gain_target/10)
+    Pun = main(Lspans, 1, 157, 101, 201, alpha, Disp, PchdBm, NF, NLco,False)[0]
+    Popt = PchdBm[np.argmax(Pun)] 
+    Poptr = np.linspace(Popt-1.5, Popt+1.5, numpoints)
+    Poptran = Poptr  +  np.random.uniform(ripplepertmin, ripplepertmax, numpoints)
+    #Poptran = Poptr  +  (10**(np.random.uniform(ripplepertmaxpowerdep, ripplepertminpowerdep, numpoints)/10) - 1)*Poptr
+    #Poptran = lin2db(db2lin(Poptr)+(10**(np.random.uniform(ripplepertmaxpowerdep, ripplepertminpowerdep, numpoints)/10) - 1)*db2lin(Poptr))
+    for i in range(numspans):
+        Gnli[i] = main(Lspans, 1, 157, 101, 201, alpha, Disp, Poptran, NF, NLco,False)[4]
+        Poptran = Poptran  +  np.random.uniform(ripplepertmin, ripplepertmax, numpoints)
+        #Poptran = Poptr  +  (10**(np.random.uniform(ripplepertmaxpowerdep, ripplepertminpowerdep, numpoints)/10) - 1)*Poptr
+        #Poptran = lin2db(db2lin(Poptr)  + (10**(np.random.uniform(ripplepertmaxpowerdep, ripplepertminpowerdep, numpoints)/10) - 1)*db2lin(Poptr))
+    ep = main(Lspans, numspans, 157, 101, 201, alpha, Disp, Poptran, NF, NLco,False)[5]    
+    Pase = NF*h*f*(db2lin(gain_target) - 1)*Rs*1e9*numspans
+    Gnli = np.sum(Gnli,axis=0)*(Nspans**ep)
+    #Pch = 1e-3*db2lin(PchdBm/10)  # ^ [W]
+    Pch = 1e-3*10**(Poptran/10)  # ^ [W]
+    return lin2db((Pch)/(Pase + Gnli*Rs*1e9)), Popt
     
-    for i in range(Nspans):
-        Gnlispanvar[i] = main(Lspans, Nspans, 157, 101, 201, alpha[i], Disp[i], PchdBm, NF[i], NLco,False)[4]
-        ep[i] = main(Lspans, Nspans, 157, 101, 201, alpha[i], Disp[i], PchdBm, NF[i], NLco,False)[5]
-    Pasespanvar = NFl*h*f*(Gl - 1)*Rs*1e9
-    Pasech = np.sum(Pasespanvar)
-    Gnli = np.sum(Gnlispanvar,axis=0)*(Nspans**(np.mean(ep)))
-    Pch = 1e-3*10**(PchdBm/10)  # ^ [W]
-    return 10*np.log10((Pch)/(Pasech + Gnli*Rs*1e9))
+SNRripple, Popt = rippledatagen(PchdBm,10)
+Pchripple = np.linspace(Popt-1.5, Popt+1.5, numpoints)
 
-numsweeps = 20
-SNRdataset = []
-for _ in range(numsweeps):
-    SNRdataset = np.append(SNRdataset,spanvar(PchdBm))
 
-PchdBmrs = []
-for _ in range(numsweeps):
-    PchdBmrs.append(PchdBm)
-PchdBmrs = np.reshape(PchdBmrs,numpoints*numsweeps)
-#SNRtest1 = spanvar(PchdBm)
-#SNRtest2 = spanvar(PchdBm)
-#SNRtest3 = spanvar(PchdBm)
-#SNRtest4 = spanvar(PchdBm)
-# =============================================================================
-# plt.plot(PchdBmrs, SNRdataset,'*', label = 'draw one')
-# plt.ylabel('SNR (dB)')
-# plt.xlabel('Pch (dBm)')
-# plt.legend()
-# plt.title('SNR vs Pch for NDFIS loss')
-# #plt.grid()
-# #plt.savefig('SNRvspch10spans.pdf', dpi=200)
-# plt.show() 
-# =============================================================================
-
-#np.savetxt('SNRvspch1span.csv', SNRdataset, delimiter=',') 
-#np.savetxt('PchdBmrs.csv', PchdBmrs, delimiter=',') 
-
-# NSFNET implementation 
-path1 = [3000,3600,2100]
-path2 = [2100,1200,3600,2100]
-path3 = [4800,1500,1500]
-path4 = [4800,1500,2700]
-
-np.random.seed(101)
-
-# path 1 - calculate the SNR at each node and return them 
-def NSFNETexample(path):
-    p = []
-    pts = []
-    #pn = []
-    #pase = []
-    for i in range(np.size(path)):
-        p.append(main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco,False)[0] )
-        Popt = PchdBm[np.argmax(p[i])]
-        Popts = np.linspace(Popt-1.5, Popt+1.5, numpoints) +  np.random.normal(0, powerdiffvar, numpoints)
-        pts.append(main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, Popts, NF, NLco,True)[0] )
-        #pn.append(main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco,False)[0] +  np.random.normal(0, snrdiffvar, numpoints))
-        #popt = (main(Lspans, int(path[i]/Lspans), 157, 101, 201, alpha, Disp, PchdBm, NF, NLco)[-1])
-    #path1popt = [PchdBm[np.argmax(p[i])] for i in range(np.size(p,0))]
-    return p,pts, Popt
-
-path1snr = NSFNETexample(path1)[1][-1]
-Popt = NSFNETexample(path1)[2]
-drawind = np.linspace(1,numpoints,numpoints)
-PchdBmopts = np.linspace(Popt-1.5, Popt+1.5, numpoints)
-plt.plot(PchdBmopts, path1snr, '*')
-plt.xlabel("Pch")
-plt.ylabel("SNR (dB)")
-plt.savefig('Asnrdatapath1.png', dpi=200)
+Poptr = np.linspace(Popt-1.5, Popt+1.5, numpoints)
+test  = (10**(np.random.uniform(ripplepertmaxpowerdep, ripplepertminpowerdep, numpoints)/10) - 1)
+test2  = (10**(-0.4/10) - 1)
+plt.plot(Pchripple, SNRripple,'+')
+plt.title('Power excursion data')
+plt.xlabel("Pch(dBm)")
+plt.ylabel("SNR(dB)")
+plt.savefig('Apowerexcursion.png', dpi=200)
 plt.show()
+#np.savetxt('Pchripple10.csv', Pchripple, delimiter=',') 
+#np.savetxt('SNRripple10.csv', SNRripple, delimiter=',') 
 
-np.savetxt('drawind.csv', drawind, delimiter=',') 
-np.savetxt('PchdBmopts.csv', PchdBmopts, delimiter=',') 
-np.savetxt('SNRpath1.csv', path1snr, delimiter=',') 
+np.savetxt('Pchnum75.csv', Pchripple, delimiter=',') 
+np.savetxt('SNRnum75.csv', SNRripple, delimiter=',') 
 
-# %% obtain noise variation of data approximately 
+# %% routing alg bit
 
-#sigsam = [ np.amax(path1snr[i:i+20]) - np.amix(path1snr[i:i+20]) for i in range(0,) ]
-n = int(float(numpoints)/20.0)
-snrsam = [path1snr[i:i + n] for i in range(0, np.size(path1snr), n)]
-sigsam = [np.var(snrsam[i])**0.5 for i in range(np.size(snrsam,0))]
-Pchsig = np.linspace(PchdBmopts[0],PchdBmopts[numpoints-1], np.size(snrsam,0))
-plt.plot(Pchsig,sigsam,'o')
-plt.xlabel("Pch (dBm)")
-plt.ylabel("sigma (dB)")
-plt.title("Approximate sigma variation")
-#plt.savefig('approxsigvar.png', dpi=200)
-plt.show()
+# define the network topology 
+nodes = ['a','b','c','d']
+numnodes = np.size(nodes)
+graph = {'a':{'b':65,'c':85},'b':{'a':65,'d':78},'c':{'a':85,'d':91},'d':{'b':78,'c':91}}
 
-# %%
+# generate shortest path between each pair of nodes and store the path and distance
+dis = []
+path = []
+for i in range(numnodes):    
+    for j in range(numnodes): 
+        d, p = dijkstra({'a':{'b':65,'c':85},'b':{'a':65,'d':78},'c':{'a':85,'d':91},'d':{'b':78,'c':91}}, nodes[i], nodes[j])
+        if i == j:
+            continue  # don't include lightpaths of length 0
+        else:
+            dis.append(d)
+            path.append(p)
+    
+def getlinklen(shpath):
+    linklen = np.empty([len(shpath)-1,1])
+    for i in range(len(shpath)-1):
+        linklen[i] = float((graph.get(shpath[i])).get(shpath[i+1]))
+    return linklen
+pathdists = []
+for i in range(np.size(path)):
+    pathdists.append(getlinklen(path[i]))
+PchdBm = np.linspace(-10,10,numpoints)
+ripplepertmax = 0.1
+ripplepertmin = -0.1
+ripplepertmaxpowerdep = 0.4
+ripplepertminpowerdep = -1.0
+gain_target2 = alpha*Lspans
+def rippledatagen2(pathlens):
+    numspans = np.size(pathlens)
+    Gnli = np.empty([numspans,numpoints])
+    ep = np.empty([numspans,1])
+    Pase = np.empty([numspans,1])
+    Popt = np.empty([numspans,1])
+    lam = 1550
+    Rs = 32
+    f = 299792458/(lam*1e-9) # operating frequency [Hz]
+    h = 6.63*1e-34  # Planck's constant [Js] 
+    for i in range(numspans):
+        Pun = main(pathlens[i], 1, 157, 101, 201, alpha, Disp, PchdBm, NF, NLco,False)[0]
+        Popt = PchdBm[np.argmax(Pun)]
+        Poptind = int(np.argmax(Pun))
+        Poptr = np.linspace(Popt-1.5, Popt+1.5, numpoints)
+        Poptran = Poptr  +  np.random.uniform(ripplepertmin, ripplepertmax, numpoints)
+        Gnli[i] = main(pathlens[i], 1, 157, 101, 201, alpha, Disp, Poptran, NF, NLco,False)[4]
+        Poptran = Poptran  +  np.random.uniform(ripplepertmin, ripplepertmax, numpoints)
+        Pase[i] = NF*h*f*(db2lin(alpha*pathlens[i]) - 1)*Rs*1e9
+    ep = main(np.mean(pathlens), numspans, 157, 101, 201, alpha, Disp, Poptran, NF, NLco,False)[5]    
+    Pase = sum(Pase)
+    Gnli = np.sum(Gnli,axis=0)*(Nspans**ep)
+    #Pch = 1e-3*db2lin(PchdBm/10)  # ^ [W]
+    Pch = 1e-3*10**(Poptran/10)  # ^ [W]
+    return lin2db((Pch)/(Pase + Gnli*Rs*1e9)), Popt, Poptind
 
-# BER calculation 
+routingAlGsnr = np.empty([np.size(pathdists),numpoints])
+Pchalg = np.empty([np.size(pathdists),numpoints])
+Poptalg = np.empty([np.size(pathdists),1])
+Poptind = np.empty([np.size(pathdists),1],dtype=int)
+for i in range(np.size(pathdists)):
+    routingAlGsnr[i], Poptalg[i], Poptind[i] = rippledatagen2(pathdists[i])
+    Pchalg[i] = np.linspace(Poptalg[i]-1.5, Poptalg[i]+1.5, numpoints).reshape(numpoints)
+
+# %% BER calculation 
 M = 4
 def BERcalc(M, SNR):
     if M == 4: 
         BER = 0.5*special.erfc(SNR**0.5)
-        #BERrs = 0.5*special.erfc(SNRRSr**0.5)
-        #BERrs2 = 0.5*special.erfc(SNRRS2r**0.5)
-         
     elif M == 16:
         BER = (3/8)*special.erfc(((2/5)*SNR)**0.5) + (1/4)*special.erfc(((18/5)*SNR)**0.5) - (1/8)*special.erfc((10*SNR)**0.5)
-        #BERrs = (3/8)*special.erfc(((2/5)*SNRRSr)**0.5) + (1/4)*special.erfc(((18/5)*SNRRSr)**0.5) - (1/8)*special.erfc((10*SNRRSr)**0.5)
-        #BERrs2 = (3/8)*special.erfc(((2/5)*SNRRS2r)**0.5) + (1/4)*special.erfc(((18/5)*SNRRS2r)**0.5) - (1/8)*special.erfc((10*SNRRS2r)**0.5)
-         
     elif M == 64:
         BER = (7/24)*special.erfc(((1/7)*SNR)**0.5) + (1/4)*special.erfc(((9/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) + (1/24)*special.erfc(((81/7)*SNR)**0.5) - (1/24)*special.erfc(((169/7)*SNR)**0.5) 
-        #BERrs = (7/24)*special.erfc(((1/7)*SNRRSr)**0.5) + (1/4)*special.erfc(((9/7)*SNRRSr)**0.5) - (1/24)*special.erfc(((25/7)*SNRRSr)**0.5) - (1/24)*special.erfc(((25/7)*SNRRSr)**0.5) + (1/24)*special.erfc(((81/7)*SNRRSr)**0.5) - (1/24)*special.erfc(((169/7)*SNRRSr)**0.5) 
-        #BERrs2 = (7/24)*special.erfc(((1/7)*SNRRS2r)**0.5) + (1/4)*special.erfc(((9/7)*SNRRS2r)**0.5) - (1/24)*special.erfc(((25/7)*SNRRS2r)**0.5) - (1/24)*special.erfc(((25/7)*SNRRS2r)**0.5) + (1/24)*special.erfc(((81/7)*SNRRS2r)**0.5) - (1/24)*special.erfc(((169/7)*SNRRS2r)**0.5) 
     return BER
 
+routingAlGBER = BERcalc(M,routingAlGsnr)
 
-# check peak BER for each node - must be below FEC threshold 
-def BERcheck(pathsnr):
-    snrmax = [np.amax(pathsnr[i]) for i in range(np.size(pathsnr,0))]
-    pathber = []
-    FECthreshold = 2e-2
-    for i in range(np.size(snrmax)):
-        pathber.append(BERcalc(M, snrmax[i]))
-    errorlinks = [pathber.index(ber) for ber in pathber if ber > FECthreshold]
-    if len(errorlinks) > 0:
-        print("FECthreshold exceeded" )
-    return pathber, errorlinks
+# ============================ TRAIN HGP MODELS ============================
 
-def BERfullcalc(pathsnr):
-    ber = np.zeros((np.size(pathsnr,0),np.size(pathsnr,1)))
-    for i in range(np.size(pathsnr,0)):
-        ber[i] = [BERcalc(M, db2lin(pathsnr[i][j])) for j in range(np.size(pathsnr,1))]
-    return ber
-    
-#path1bern = BERfullcalc(path1snrn)
-#path2bern = BERfullcalc(path2snrn)
-#path3bern = BERfullcalc(path3snrn)
-#path4bern = BERfullcalc(path4snrn)
 
-#plt.plot(PchdBm, path1ber[-1],'*', label= 'path 1')
-# =============================================================================
-# plt.plot(PchdBm, path1snr[2], label= 'path 1 span 3')
-# plt.plot(PchdBm, path1snr[0], label= 'path 1 span 1')
-# plt.plot(PchdBm, path1snr[1], label= 'path 1 span 2')
-# plt.xlabel('Pch (dBm)')
-# plt.ylabel('SNR (dB)')
-# plt.legend()
-# plt.show()
-# =============================================================================
+numreq = 10
+for i in range(numreq):
+    # update for online learning 
+    #  choose random source and destination nodes 
+    def requestgen(graph):
+        src = random.choice(list(graph.keys()))
+        des = random.choice(list(graph.keys()))
+        while des == src:
+            des = random.choice(list(graph.keys()))
+        return src, des
+    Rsource, Rdest = requestgen(graph)
+    # find corresponding path index
+    def srcdestcheck(path,src,dest):
+        if path[0] == src and path[-1] == dest:
+            return True  
+    randpathind = [i for i in range(np.size(path)) if  srcdestcheck(path[i], Rsource, Rdest)] 
+    # CHECK BLOCKING  
+    estpaths = [] # store indices of established paths 
+    # COMPARE TO FEC 
 
-#plt.plot(PchdBm, path1snr[-1], label= 'path 1')
-# =============================================================================
-# plt.plot(PchdBm, path1snrn[-1], label= 'path 1 noise')
-# plt.xlabel('Pch (dBm)')
-# plt.ylabel('SNR (dB)')
-# plt.legend()
-# plt.show()
-# =============================================================================
 
-#np.savetxt('PchdBm.csv', PchdBm, delimiter=',') 
-#np.savetxt('SNRpath1.csv', path1snrn[-1], delimiter=',') 
-#np.savetxt('BERpath1.csv', path1bern[-1], delimiter=',') 
+
+
 
 #%% ====================================================================================
 
@@ -578,7 +527,6 @@ M = 4
 L = 10
 
 def MIGHquad(SNR):
-    
     if M == 4:
         Ps = np.mean(np.abs(Qam4**2))
         X = Qam4
@@ -596,12 +544,9 @@ def MIGHquad(SNR):
         X = Qam128
     else:
         print("unrecogised M")
-    
     sigeff2 = Ps/(10**(SNR/10))
-
     Wgh = GHquad(L)[0]
     Rgh = GHquad(L)[1]
-
     sum_out = 0
     for ii in range(M):
         sum_in = 0
@@ -615,8 +560,6 @@ def MIGHquad(SNR):
                 sum_inn = Wgh[l2]*np.log2(sum_exp) + sum_inn
             sum_in = Wgh[l1]*sum_inn + sum_in
         sum_out = sum_in + sum_out
-
-
     return np.log2(M)- (1/(M*np.pi))*sum_out 
 
 def findMI(SNR):
@@ -624,22 +567,24 @@ def findMI(SNR):
         Ixy = pool.map(MIGHquad, SNR) 
     return Ixy
 
-start_time = time.time()
-IxyNy = findMI(SNRanalyticalbase)
-IxyRS = findMI(SNRanalyticalRSbase)
-IxyRS2 = findMI(SNRanalyticalRS2base)
+MIripple = findMI(SNRripple)
 
-#IxyNy = [MIGHquad(i) for i in SNRanalyticalbase ]
-#IxyRS = [MIGHquad(i) for i in SNRanalyticalRSbase ]
-#IxyRS2 = [MIGHquad(i) for i in SNRanalyticalRS2base ]
+# %%
 
-duration = time.time() - start_time
-print("MI calculation duration: " + str(duration))
+plt.plot(Pchripple, MIripple,'+')
+plt.show()
+# =============================================================================
+# start_time = time.time()
+# IxyNy = findMI(SNRanalyticalbase)
+# IxyRS = findMI(SNRanalyticalRSbase)
+# IxyRS2 = findMI(SNRanalyticalRS2base)
+# duration = time.time() - start_time
+# print("MI calculation duration: " + str(duration))
+# =============================================================================
 
 # %% ================================== Reach calculation ==================================
 if reachcalculation:
 # find the BER from: On the Bit Error Probability of QAM Modulation - Michael P. Fitz 
-
     PchreachdBm = np.linspace(-5,5,numpoints)
     lossreach = NDFISlossoverallnzmean
     dispreach = NDFISdispnzmean
@@ -647,28 +592,17 @@ if reachcalculation:
     SNRNYr = main(Lspans, Nspans, 157, 101, 201, lossreach,dispreach, PchreachdBm, NF, NLco,False)[0]
     SNRRSr = main(Lspans, Nspans, 157, 101, 201, lossreach, dispreach, PchreachdBm, NF, NLco,False)[1]
     SNRRS2r = main(Lspans, Nspans, 157, 101, 201, lossreach, dispreach, PchreachdBm, NF, NLco,False)[2]
-    
-    
-    
-    # %% =============================================================================
-    # find the reach from BER
-    
     # Ny = 0 for Nyquist, 1 for RS and 2 for RS2
-    def reachcalc(Ny, P):
+    def reachcalc(Ny, P, M):
         FECthreshold = 2e-2
         BER = np.zeros(numpoints)
-        Ns = 2 # start at 2 spans because of the denominator of (22) in Poggiolini's GN model paper - divide by ln(Ns) = 0 for Ns = 1
-           
-        while BER[0] < FECthreshold:
-                
-            SNR = main(Lspans, Ns, 157, 101, 201, alpha, Disp, P, NF, NLco,False)[Ny]
-                
+        Ns = 20 # start at 2 spans because of the denominator of (22) in Poggiolini's GN model paper - divide by ln(Ns) = 0 for Ns = 1
+        while BER[0] < FECthreshold:               
+            SNR = main(Lspans, Ns, 157, 101, 201, alpha, Disp, P, NF, NLco,False)[Ny]                
             if M == 4: 
-                BER = 0.5*special.erfc(SNR**0.5)
-                    
+                BER = 0.5*special.erfc(SNR**0.5)                    
             elif M == 16:
-                BER = (3/8)*special.erfc(((2/5)*SNR)**0.5) + (1/4)*special.erfc(((18/5)*SNR)**0.5) - (1/8)*special.erfc((10*SNR)**0.5)
-                    
+                BER = (3/8)*special.erfc(((2/5)*SNR)**0.5) + (1/4)*special.erfc(((18/5)*SNR)**0.5) - (1/8)*special.erfc((10*SNR)**0.5)                    
             elif M == 64:
                 BER = (7/24)*special.erfc(((1/7)*SNR)**0.5) + (1/4)*special.erfc(((9/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) + (1/24)*special.erfc(((81/7)*SNR)**0.5) - (1/24)*special.erfc(((169/7)*SNR)**0.5)     
             else:
@@ -676,21 +610,22 @@ if reachcalculation:
             Ns = Ns + 1
         return Ns
     
-    reachNy = np.zeros(numpoints)
-    reachRS = np.zeros(numpoints)
-    reachRS2 = np.zeros(numpoints)
-    for i in range(np.size(PchreachdBm)): 
-        reachNy[i] = reachcalc(0, PchreachdBm[i])
-        reachRS[i] = reachcalc(1, PchreachdBm[i])
-        reachRS2[i] = reachcalc(2, PchreachdBm[i])
+    test = reachcalc(0, 0, 64)
+    
+    
+    #reachNy = np.zeros(numpoints)
+    #reachRS = np.zeros(numpoints)
+    #reachRS2 = np.zeros(numpoints)
+    #for i in range(np.size(PchreachdBm)): 
+    #    reachNy[i] = reachcalc(0, PchreachdBm[i])
+    #    reachRS[i] = reachcalc(1, PchreachdBm[i])
+    #    reachRS2[i] = reachcalc(2, PchreachdBm[i])
 #        SNRRS = main(Lspans, Nspans, 157, 101, 201, NDFISlossoverallnzmean, NDFISdispnzmean, PchdBm, NF, NLco)[1]
 #        SNRRS2 = main(Lspans, Nspans, 157, 101, 201, NDFISlossoverallnzmean, NDFISdispnzmean, PchdBm, NF, NLco)[2]
     
 # %% ================================== plotting =================================
-
 GNPysnr = np.genfromtxt(open("SNRGNPy.csv", "r"), delimiter=",", dtype =float)
 GNPyosnr = np.genfromtxt(open("OSNRGNPy.csv", "r"), delimiter=",", dtype =float)
-
 
 # =============================================================================
 # #plt.plot(PchdBm, IxyRS,label = '50GHz non-Nyquist ')
@@ -714,23 +649,6 @@ GNPyosnr = np.genfromtxt(open("OSNRGNPy.csv", "r"), delimiter=",", dtype =float)
 # #plt.savefig('NDFISlossdistribtionMI16qamP0.png', dpi=200)
 # plt.show()
 # =============================================================================
-
-
-# %% plot of reach vs number of spans 
-
-# =============================================================================
-# plt.plot(PchreachdBm, reachNy, label = 'Nyquist' )
-# plt.plot(PchreachdBm, reachRS, label = '50 GHz non-nyquist' )
-# plt.plot(PchreachdBm, reachRS2, label = '25 GHz non-nyquist' )
-# plt.legend()
-# plt.ylabel('reach (100 km spans) ')
-# plt.xlabel('Pch (dBm)')
-# plt.title('Reach vs Pch 64 QAM ')
-# plt.grid()
-# plt.savefig('reachvspch64qam.png', dpi=200)
-# plt.show()
-# =============================================================================
-
 
 # %% SNR plotting bit 
 #Pchgnpy = np.linspace(-10,10,np.size(GNPysnr))

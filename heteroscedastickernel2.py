@@ -4,6 +4,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt 
+import matplotlib.ticker as mticker
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from sklearn.preprocessing import StandardScaler
@@ -19,15 +20,20 @@ from scipy.stats import norm
 from scipy import special
 import multiprocessing
 from GHquad import GHquad
+import matplotlib
+#matplotlib.rc_file_defaults()   # use to return to Matplotlib defaults 
 
-MIcalc = False
-# 
 #y = np.genfromtxt(open("yhetdata.csv", "r"), delimiter=",", dtype =float)
 #x = np.genfromtxt(open("xhetdata.csv", "r"), delimiter=",", dtype =float)
 #x = np.genfromtxt(open("PchdBmopts.csv", "r"), delimiter=",", dtype =float)
 #y = np.genfromtxt(open("SNRpath1.csv", "r"), delimiter=",", dtype =float)
 x = np.genfromtxt(open("Pchripple.csv", "r"), delimiter=",", dtype =float)
 y = np.genfromtxt(open("SNRripple.csv", "r"), delimiter=",", dtype =float)
+#x = np.genfromtxt(open("Pchripple10.csv", "r"), delimiter=",", dtype =float)
+#y = np.genfromtxt(open("SNRripple10.csv", "r"), delimiter=",", dtype =float)
+
+#x = np.genfromtxt(open("Pchnum75.csv", "r"), delimiter=",", dtype =float)
+#y = np.genfromtxt(open("SNRnum75.csv", "r"), delimiter=",", dtype =float)
 # =============================================================================
 #numpoints = 100
 #x = np.linspace(0,1,numpoints)
@@ -317,33 +323,7 @@ plt.show()
 varerr = varfmst**0.5 - sigma
 fiterr = fmst - ystar
 
-# %%
-
-#NLPD[i] = sum([(1/n)*(-np.log(norm.pdf(x[j], fmst4[j], varfmst4[j]**0.5))) for j in range(n) ])
-
-
-test3 = np.empty([n,1])
-for k in range(n):
-    test3[k] = -np.log(norm.pdf(x[k], fmst[k], varfmst[k]**0.5))
-test3 = sum(test3)*(1/n)
-
-
-test = norm.pdf(x[0], fmst[0], varfmst[0]**0.5)
-
-
-z = np.empty([n,1])
-s = 200
-for j in range(n):
-    np.random.seed()
-    normdraw = normal(fmst[j], varfmst[j]**0.5, s).reshape(s,1)
-    z[j] = np.log((1/s)*0.5*sum((y[j] - normdraw)**2))
-
-test2 = normdraw - test
-
-
-
 # %% Steps 2-4 in a loop - iterate until convergence 
-
 
 def hetloop(fmst,varfmst,numiters):
     s = 500
@@ -580,7 +560,7 @@ plt.xlabel('$x$')
 plt.ylabel('$\sigma$')
 plt.legend()
 #plt.title("Shifted HGP sigma")
-plt.savefig('Aheteroscedasticgsigma.pdf', dpi=200)
+#plt.savefig('Aheteroscedasticgsigma.pdf', dpi=200)
 plt.show()
 
 # %%
@@ -591,11 +571,14 @@ plt.plot(xsig, sigsam, 'o', label='sampled $\sigma$')
 plt.xlabel('$x$')
 #plt.ylabel('$\sigma$')
 plt.legend()
-plt.savefig('Anoisefunction.pdf', dpi=200)
+#plt.savefig('Anoisefunction.pdf', dpi=200)
 plt.show()
 
 # %%
 
+font = {'family' : 'normal',
+        'size'   : 14}
+plt.rc('font', **font)
 # =============================================================================
 # labelfillj2 = str(numsig) + '$\sigma$'
 # # =============================================================================
@@ -612,7 +595,7 @@ fmstps4i4 = scaler.inverse_transform(fmstps44)
 fmstms4i4 = scaler.inverse_transform(fmstms44)
 
 plt.plot(x, yi,'+')
-plt.plot(x, fmst4i, label = 'HGP')
+plt.plot(x, fmst4i, label = 'HGPR')
 # =============================================================================
 plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([fmstps4i,
@@ -642,11 +625,53 @@ plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([fmstms4i3,
                         (fmstms4i4)[::-1]]),
          alpha=0.3, fc='g', ec='None')
+plt.axis([x[0],x[-1],11.3,14.7])
 plt.xlabel('$P_{ch}$(dBm)')  
 plt.ylabel('SNR(dB)')
-plt.legend()
-plt.savefig('AHGPfit.pdf', dpi=200)
+plt.legend(loc="lower right",ncol=3)
+plt.savefig('AHGPfit.pdf', dpi=200,bbox_inches='tight')
 plt.show()
+
+# %%  ECOC SNR PLOT
+
+plt.plot(x,yi,'+',color='k')
+plt.plot(x, fmst4i,LineStyle='-',color='k', label = 'Pred. mean')
+plt.plot(x, fmstps4i,LineStyle=':',color='k',alpha=0.9, label = '$2 \sigma$')
+plt.plot(x, fmstms4i,LineStyle=':',color='k',alpha=0.9)
+plt.plot(x, fmstps4i2,LineStyle='-.',color='k',alpha=0.9, label = '$3 \sigma$')
+plt.plot(x, fmstms4i2,LineStyle='-.',color='k',alpha=0.9)
+plt.plot(x, fmstps4i3,LineStyle='--',color='k',alpha=0.9, label = '$4 \sigma$')
+plt.plot(x, fmstms4i3,LineStyle='--',color='k',alpha=0.9)
+plt.axis([x[0],x[-1],12.0,14.1])
+plt.xlabel('$P_{ch}$(dBm)')  
+plt.ylabel('SNR(dB)')
+plt.legend(loc="lower right",ncol=3)
+#plt.savefig('AHGPfitECOC20.pdf', dpi=200,bbox_inches='tight')
+plt.show()
+
+
+peak1 = x[np.argmax(fmstps4i3)]
+peak2 = x[np.argmax(fmst4i)]
+peak3 = x[np.argmax(fmstms4i3)]
+# %% ECOC sigma plot 
+
+#sigs420 = sigs4
+#rf20 = rf[ind]
+
+
+plt.plot(x,sigs4,color='k',LineStyle='-.',label='GP1')
+plt.plot(x,rf[ind]**0.5,color='k',LineStyle='-',label='$\sqrt{r(x)}$ 1')
+#plt.plot(x,sigs420,color='k',LineStyle='--',label='GP2')
+#plt.plot(x,rf20**0.5,color='k',LineStyle=':',label='$\sqrt{r(x)}$ 2')
+plt.xlabel('$P_{ch}$(dBm)')  
+plt.ylabel('$\sigma$(dB)')
+plt.legend()
+#plt.savefig('NoisefunctionECOCcombined.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('Noisefunctionnum50.pdf', dpi=200,bbox_inches='tight')
+plt.show()
+
+#np.savetxt('sigs420.csv', sigs4, delimiter=',') 
+#np.savetxt('rf20.csv', rf[ind], delimiter=',') 
 
 # %% BER transform
 
@@ -682,6 +707,7 @@ Bfmstms4 = BERcalc(M, fmstms4i4)
 
 
 
+#ax = plt.subplot(111)
 plt.plot(x,By,'+')
 plt.plot(x, Bfmst, label = 'HGP')
 # =============================================================================
@@ -713,14 +739,40 @@ plt.fill(np.concatenate([x, x[::-1]]),
          np.concatenate([Bfmstms3,
                         (Bfmstms4)[::-1]]),
          alpha=0.3, fc='g', ec='None')
+#ax.set_yticklabels(["{:.1e}".format(t) for t in ax.get_yticks()])
+plt.axis([x[0],x[-1],2e-4,1.15e-3])
 plt.xlabel('$P_{ch}$(dBm)')  
-plt.ylabel('BER')
+plt.ylabel('BER (AU)')
+#plt.yticks([])
 plt.legend()
-plt.savefig('AHGPber.pdf', dpi=200)
+#plt.savefig('AHGPber.pdf', dpi=200)
 plt.show()
 
+# %% ECOC BER PLOT
+
+plt.plot(x,By,'+',color='k')
+plt.plot(x, Bfmst,LineStyle='-',color='k', label = 'Pred. mean')
+plt.plot(x, Bfmstps,LineStyle=':',color='k',alpha=0.9, label = '$2 \sigma$')
+plt.plot(x, Bfmstms,LineStyle=':',color='k',alpha=0.9)
+plt.plot(x, Bfmstps2,LineStyle='-.',color='k',alpha=0.9, label = '$3 \sigma$')
+plt.plot(x, Bfmstms2,LineStyle='-.',color='k',alpha=0.9)
+plt.plot(x, Bfmstps3,LineStyle='--',color='k',alpha=0.9, label = '$4 \sigma$')
+plt.plot(x, Bfmstms3,LineStyle='--',color='k',alpha=0.9)
+plt.axis([x[0],x[-1],2.2e-4,9e-4])
+plt.xlabel('$P_{ch}$(dBm)')  
+plt.ylabel('BER (AU)')
+plt.yticks([])
+plt.legend()
+#plt.savefig('AHGPberECOC10.pdf', dpi=200,bbox_inches='tight')
+plt.show()
+
+
+BERpeak1 = x[np.argmax(Bfmstps)]
+BERpeak2 = x[np.argmax(Bfmstps3)]
+
+
 # %% ================================ Mutual information transform ===========================================
-  
+MIcalc = False 
 # import constellation shapes from MATLAB-generated csv files 
 if MIcalc:  
     Qam4r = np.genfromtxt(open("qam4r.csv", "r"), delimiter=",", dtype =float)
@@ -835,6 +887,22 @@ if MIcalc:
     plt.savefig('AHGPMI.pdf', dpi=200)
     plt.show()
     
-    
+    # %% ECOC BER PLOT
+
+    plt.plot(x,MIy,'+',color='k')
+    plt.plot(x, MIfmst,LineStyle='-',color='k', label = 'Pred. mean')
+    plt.plot(x, MIfmstps,LineStyle=':',color='k',alpha=0.9, label = '$2 \sigma$')
+    plt.plot(x, MIfmstms,LineStyle=':',color='k',alpha=0.9)
+    plt.plot(x, MIfmstps2,LineStyle='-.',color='k',alpha=0.9, label = '$3 \sigma$')
+    plt.plot(x, MIfmstms2,LineStyle='-.',color='k',alpha=0.9)
+    plt.plot(x, MIfmstps3,LineStyle='--',color='k',alpha=0.9, label = '$4 \sigma$')
+    plt.plot(x, MIfmstms3,LineStyle='--',color='k',alpha=0.9)
+    plt.axis([x[0],x[-1],3.49,3.92])
+    plt.xlabel('$P_{ch}$(dBm)')  
+    plt.ylabel('MI (bits/symb)')
+    #plt.yticks([])
+    plt.legend()
+    plt.savefig('AHGPmiECOC20.pdf', dpi=200,bbox_inches='tight')
+    plt.show()
     
 
