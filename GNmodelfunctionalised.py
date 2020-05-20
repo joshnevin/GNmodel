@@ -23,18 +23,12 @@ from NFmodelGNPy import db2lin
 #from Routingalgorithm import dijkstra
 import random
 
-
-
-
-
-
+datagen = False
 NDFISimport = True
 repairlossimport = True
 constellationimport = True
 reachcalculation = True
 #addnoise = True
-
-
 
 asediffvar = 3e-6
 TRxSNR = db2lin(26) # TRX SNR [TRxdiffmean = db2lin(1.0)
@@ -317,20 +311,20 @@ NchRS = 101
 #Disp = NDFISdispnzmean
 Disp = 16.7
 gain_target = alpha*Lspans
-gain_max = 26  # operator model example from GNPy - see eqpt_config.json 
-gain_min = 15
-nf_min = 6
-nf_max = 10 
-nf1 = nf_model(gain_min,gain_max,nf_min,nf_max )[0]
-nf2 = nf_model(gain_min,gain_max,nf_min,nf_max )[1]
-deltap = nf_model(gain_min,gain_max,nf_min,nf_max )[2]
-g1max = nf_model(gain_min,gain_max,nf_min,nf_max )[3]
-g1min = nf_model(gain_min,gain_max,nf_min,nf_max )[4]
-g1a = gain_target - deltap - (gain_max - gain_target)
-NF = lin2db(db2lin(nf1) + db2lin(nf2)/db2lin(g1a))  
-#NF = 5.0
-
-
+# =============================================================================
+# gain_max = 26  # operator model example from GNPy - see eqpt_config.json 
+# gain_min = 15
+# nf_min = 6
+# nf_max = 10 
+# nf1 = nf_model(gain_min,gain_max,nf_min,nf_max )[0]
+# nf2 = nf_model(gain_min,gain_max,nf_min,nf_max )[1]
+# deltap = nf_model(gain_min,gain_max,nf_min,nf_max )[2]
+# g1max = nf_model(gain_min,gain_max,nf_min,nf_max )[3]
+# g1min = nf_model(gain_min,gain_max,nf_min,nf_max )[4]
+# g1a = gain_target - deltap - (gain_max - gain_target)
+# NF = lin2db(db2lin(nf1) + db2lin(nf2)/db2lin(g1a))  
+# =============================================================================
+NF = 5.5
 
 # %% SNR variation due to ripple emulation
 
@@ -380,10 +374,15 @@ plt.show()
 #np.savetxt('Pchripple10.csv', Pchripple, delimiter=',') 
 #np.savetxt('SNRripple10.csv', SNRripple, delimiter=',') 
 
-np.savetxt('Pchnum75.csv', Pchripple, delimiter=',') 
-np.savetxt('SNRnum75.csv', SNRripple, delimiter=',') 
+#np.savetxt('Pchnum75.csv', Pchripple, delimiter=',') 
+#np.savetxt('SNRnum75.csv', SNRripple, delimiter=',') 
 
 # %% routing alg bit
+# import trained GP models
+prmn = np.genfromtxt(open("prmn.csv", "r"), delimiter=",", dtype =float)
+sigma = np.genfromtxt(open("sig.csv", "r"), delimiter=",", dtype =float)
+sigrf = np.genfromtxt(open("sigrf.csv", "r"), delimiter=",", dtype =float)
+
 # Dijkstra implementation: following https://www.youtube.com/watch?v=IG1QioWSXRI
 def dijkstra(graph,start,goal):
     shortest_distance = {}
@@ -421,26 +420,28 @@ def dijkstra(graph,start,goal):
         #print('And the path is ' + str(path))
     return shortest_distance[goal], path
 # define the network topology 
-nodes = ['1','2','3','4','5','6','7','8','9','10','11','12','13','14']
 
+nodes = ['1','2','3','4','5','6','7','8','9','10','11','12','13','14']
 numnodes = np.size(nodes)
-#graph = {'a':{'b':65,'c':85},'b':{'a':65,'d':78},'c':{'a':85,'d':91},'d':{'b':78,'c':91}}
-#edges = {'a':{'b':1,'c':8},'b':{'a':2,'d':3},'c':{'a':7,'d':6},'d':{'b':4,'c':5}}
-#numedges = 8
 graph = {'1':{'2':2100,'3':3000,'8':4800},'2':{'1':2100,'3':1200,'4':1500},'3':{'1':3000,'2':1200,'6':3600},    
          '4':{'2':1500,'5':1200,'11':3900},'5':{'4':1200,'6':2400,'7':1200}, '6':{'3':3600,'5':2400,'10':2100,'14':3600},
          '7':{'5':1200,'8':1500,'10':2700}, '8':{'1':4800,'7':1500,'9':1500}, '9':{'8':1500,'10':1500,'12':600,'13':600},
          '10':{'6':2100,'7':2700,'9':1500}, '11':{'4':3900,'12':1200,'13':1500}, '12':{'9':600,'11':1200,'14':600},
          '13':{'9':600,'11':1500,'14':300}, '14':{'6':3600,'12':600,'13':300}
-         }              
+         } 
+graphnorm = {'1':{'2':2100,'3':3000,'8':4800},'2':{'1':2100,'3':1200,'4':1500},'3':{'1':3000,'2':1200,'6':3600},    
+         '4':{'2':1500,'5':1200,'11':3900},'5':{'4':1200,'6':2400,'7':1200}, '6':{'3':3600,'5':2400,'10':2100,'14':3600},
+         '7':{'5':1200,'8':1500,'10':2700}, '8':{'1':4800,'7':1500,'9':1500}, '9':{'8':1500,'10':1500,'12':600,'13':600},
+         '10':{'6':2100,'7':2700,'9':1500}, '11':{'4':3900,'12':1200,'13':1500}, '12':{'9':600,'11':1200,'14':600},
+         '13':{'9':600,'11':1500,'14':300}, '14':{'6':3600,'12':600,'13':300}
+         }                 
 edges = {'1':{'2':0,'3':1,'8':2},'2':{'1':3,'3':4,'4':5},'3':{'1':6,'2':7,'6':8},    
          '4':{'2':9,'5':10,'11':11},'5':{'4':12,'6':13,'7':14}, '6':{'3':15,'5':16,'10':17,'14':18},
          '7':{'5':19,'8':20,'10':21}, '8':{'1':22,'7':23,'9':24}, '9':{'8':25,'10':26,'12':27,'13':28},
          '10':{'6':29,'7':30,'9':31}, '11':{'4':32,'12':33,'13':34}, '12':{'9':35,'11':36,'14':37},
          '13':{'9':38,'11':39,'14':40}, '14':{'6':41,'12':42,'13':43}
-         }  
+         }
 numedges = 44
-
 # %%
 edgelens = np.empty([numedges,1])
 count = 0
@@ -451,153 +452,257 @@ for key in graph:
         count = count + 1
 
 # %%
-# generate shortest path between each pair of nodes and store the path and distance
-dis = []
-path = []
-for i in range(numnodes):    
-    for j in range(numnodes): 
-        d, p = dijkstra({'1':{'2':2100,'3':3000,'8':4800},'2':{'1':2100,'3':1200,'4':1500},'3':{'1':3000,'2':1200,'6':3600},    
-         '4':{'2':1500,'5':1200,'11':3900},'5':{'4':1200,'6':2400,'7':1200}, '6':{'3':3600,'5':2400,'10':2100,'14':3600},
-         '7':{'5':1200,'8':1500,'10':2700}, '8':{'1':4800,'7':1500,'9':1500}, '9':{'8':1500,'10':1500,'12':600,'13':600},
-         '10':{'6':2100,'7':2700,'9':1500}, '11':{'4':3900,'12':1200,'13':1500}, '12':{'9':600,'11':1200,'14':600},
-         '13':{'9':600,'11':1500,'14':300}, '14':{'6':3600,'12':600,'13':300}
-         }, nodes[i], nodes[j])
-        if i == j:
-            continue  # don't include lightpaths of length 0
-        else:
-            dis.append(d)
-            path.append(p)
-    
-def getlinklen(shpath):
-    linklen = np.empty([len(shpath)-1,1])
-    link = []
-    for i in range(len(shpath)-1):
-        linklen[i] = float((graph.get(shpath[i])).get(shpath[i+1]))
-        link.append((edges.get(shpath[i])).get(shpath[i+1]))
-    return linklen, link
-pathdists = []
-links = []                                                
-for i in range(np.size(path)):
-    pathdists.append(getlinklen(path[i])[0])
-    links.append(getlinklen(path[i])[1])
 PchdBm = np.linspace(-10,10,numpoints)
 #ripplepertmax = 0.1  # for fixed perturbation between spans 
 #ripplepertmin = -0.1
 gain_target2 = alpha*Lspans
 numlam = 20 # initial expected number of wavelengths 
-def routingdatagen(edgelens):
-    Gnlitot = np.empty([numedges,numpoints])
-    Pase = np.empty([numedges,1])
-    Popt = np.empty([numedges,1])
-    Pch = np.empty([numedges,numpoints])
-   
-    lam = 1550
-    Rs = 32
-    f = 299792458/(lam*1e-9) # operating frequency [Hz]
-    h = 6.63*1e-34  # Planck's constant [Js] 
-    Pun = main(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False)[0]
-    Popt = PchdBm[np.argmax(Pun)]
-    Poptind = int(np.argmax(Pun))
-    Poptr = np.linspace(Popt-1.5, Popt+1.5, numpoints)
-    ripplepert = np.random.uniform(0.1,0.2)
-    Poptran = Poptr  +  np.random.uniform(-ripplepert, ripplepert, numpoints)
-    for i in range(numedges):
-        Gnli = np.empty([int(edgelens[i]/Lspans),numpoints])
-        for j in range(int(edgelens[i]/Lspans)):
-            Gnli[j] = main(Lspans, 1, numlam, 101, 201, alpha, Disp, Poptran, NF, NLco,False)[4]
+if datagen:
+    def routingdatagen2(edgelen):
+        lam = 1550
+        Rs = 32
+        f = 299792458/(lam*1e-9) # operating frequency [Hz]
+        h = 6.63*1e-34  # Planck's constant [Js] 
+        Pun = main(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False)[0] # }
+        Popt = PchdBm[np.argmax(Pun)]                                                   # }could do this outside of function
+        Poptind = int(np.argmax(Pun))                                                   # }
+        Poptr = np.linspace(Popt-1.5, Popt+1.5, numpoints)
+        #ripplepert = 0.1
+        ripplepert = np.random.uniform(0.1,0.2)
+        Poptran = Poptr  +  np.random.uniform(-ripplepert, ripplepert, numpoints)
+        numspans = int(edgelen/Lspans)
+        Gnli = np.empty([numspans,numpoints])
+        for i in range(numspans):
+            Gnli[i] = main(Lspans, 1, numlam, 101, 201, alpha, Disp, Poptran, NF, NLco,False)[4]
             ripplepert = np.random.uniform(0.1,0.2)
             Poptran = Poptran + np.random.uniform(-ripplepert, ripplepert, numpoints)
-            #Poptran = Poptran  +  np.random.uniform(ripplepertmin, ripplepertmax, numpoints)
-            if j == int(edgelens[i]/Lspans - 1):
-                Poptfinal = Poptran
-        Gnlitot[i] = np.sum(Gnli,axis=0) # incoherent addition of NLI across spans (epsilon = 0)
-        Pase[i] = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*(edgelens[i]/Lspans)
-        Pch[i] = 1e-3*10**(Poptfinal/10) 
-    return lin2db((Pch)/(Pase*np.ones(numpoints) + Gnlitot*Rs*1e9)), Popt, Poptind
-
-linkSNR, linkPopt, linkPoptind = routingdatagen(edgelens)
-
-# %%
-
-linkPch = np.transpose(np.linspace(linkPopt-1.5, linkPopt+1.5, numpoints).reshape(100,1))
-
-np.savetxt('linkSNR.csv', linkSNR, delimiter=',') 
-np.savetxt('linkPch.csv', linkPch, delimiter=',') 
-
-
-# %%
-
-# =============================================================================
-# routingAlGsnr = np.empty([np.size(pathdists),numpoints])
-# Pchalg = np.empty([np.size(pathdists),numpoints])
-# Poptalg = np.empty([np.size(pathdists),1])
-# Poptind = np.empty([np.size(pathdists),1],dtype=int)
-# for i in range(np.size(pathdists)):
-#     routingAlGsnr[i], Poptalg[i], Poptind[i] = rippledatagen2(pathdists[i])
-#     Pchalg[i] = np.linspace(Poptalg[i]-1.5, Poptalg[i]+1.5, numpoints).reshape(numpoints)
-# =============================================================================
-
-# %% request loop 
-M = 64
-def BERcalc(M, SNR):
-    if M == 4: 
-        BER = 0.5*special.erfc(SNR**0.5)
-    elif M == 16:
-        BER = (3/8)*special.erfc(((2/5)*SNR)**0.5) + (1/4)*special.erfc(((18/5)*SNR)**0.5) - (1/8)*special.erfc((10*SNR)**0.5)
-    elif M == 64:
-        BER = (7/24)*special.erfc(((1/7)*SNR)**0.5) + (1/4)*special.erfc(((9/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) + (1/24)*special.erfc(((81/7)*SNR)**0.5) - (1/24)*special.erfc(((169/7)*SNR)**0.5) 
-    return BER
-
-#FT = 2.11  # QPSK
-FT = 4.65   # 16-QAM
-#FT = 11.6   # 64-QAM
-
-# ============================ TRAIN HGP MODELS ============================
-estlam = np.zeros([numedges,numlam]) # 0 for empty, 1 for occupied
-reqlams = 0
-numreq = 100
-for i in range(numreq):
-    # update for online learning 
-    #  choose random source and destination nodes 
-    def requestgen(graph):
-        src = random.choice(list(graph.keys()))
-        des = random.choice(list(graph.keys()))
-        while des == src:
-            des = random.choice(list(graph.keys()))
-        return src, des
-    Rsource, Rdest = requestgen(graph)
-    # find corresponding path index
-    def srcdestcheck(path,src,dest):
-        if path[0] == src and path[-1] == dest:
-            return True  
-    randpathind = [i for i in range(np.size(path)) if  srcdestcheck(path[i], Rsource, Rdest)][0]
-    #print("selected request index: " + str(randpathind))
-    randedges = links[randpathind]  # selected edges for request 
-    lamslot = [np.where(estlam[randedges[i]-1]==0)[0][0] for i in range(np.size(links[randpathind]))] # first available wavelength slot for this edge
-    if np.size(lamslot) == 0:
-        print("all wavelength slots are full")
-        continue
-    # need to check SNR for all the edges in the path
-    edgesuc = 0
-    for j in range(np.size(linkSNR[randedges],0)):
-        if linkSNR[randedges][j][linkPoptind] > FT:
-            #print("reach satisfied on edge " + str(randedges[j]))
-            edgesuc = edgesuc + 1
-        else:
-            print("request " + str(i) + " denied -- insufficient reach on edge " + str(randedges[j]))
-            break
+            if i == numspans-2:
+                    Poptfinal = Poptran  # select the power that was put into the last span to calculate SNR
+        Gnli = np.sum(Gnli,axis=0)
+        Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
+        Pch = 1e-3*10**(Poptfinal/10) 
+        return lin2db((Pch)/(Pase*np.ones(numpoints) + Gnli*Rs*1e9)), Popt, Poptind
         
-    if edgesuc == np.size(linkSNR[randedges],0):
-        #print("successfully allocated request " + str(i))
-        reqlams = reqlams + 1
-        for l in range(len(randedges)):
-            estlam[randedges[l]-1][lamslot[l]] = 1
-   
-ava = (reqlams/numreq)*100 
-print("Availability = " + str(ava) + "%")        
+    linkSNR = np.empty([numedges,numpoints])
+    for i in range(numedges):
+        linkSNR[i], linkPopt, linkPoptind = routingdatagen2(edgelens[i])
+    
+    linkPch = np.transpose(np.linspace(linkPopt-1.5, linkPopt+1.5, numpoints).reshape(100,1))
+    linkPchtest = np.linspace(linkPopt-1.5, linkPopt+1.5, numpoints)
+    
+    #np.savetxt('linkSNR.csv', linkSNR, delimiter=',') 
+    #np.savetxt('linkPch.csv', linkPch, delimiter=',') 
 
+if datagen == False:
+    Pun = main(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False)[0] # }
+    Popt = PchdBm[np.argmax(Pun)]                                                   # }could do this outside of function
+    linkPoptind = int(np.argmax(Pun)) 
+    linkSNR = np.genfromtxt(open("linkSNR.csv", "r"), delimiter=",", dtype =float)
+    linkPch = np.genfromtxt(open("linkPch.csv", "r"), delimiter=",", dtype =float)
+
+def BERcalc(M, SNR):
+        if M == 4: 
+            BER = 0.5*special.erfc(SNR**0.5)
+        elif M == 16:
+            BER = (3/8)*special.erfc(((2/5)*SNR)**0.5) + (1/4)*special.erfc(((18/5)*SNR)**0.5) - (1/8)*special.erfc((10*SNR)**0.5)
+        elif M == 64:
+            BER = (7/24)*special.erfc(((1/7)*SNR)**0.5) + (1/4)*special.erfc(((9/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) + (1/24)*special.erfc(((81/7)*SNR)**0.5) - (1/24)*special.erfc(((169/7)*SNR)**0.5) 
+        return BER
     
+def getlinklen(shpath,graph,edges):
+        linklen = np.empty([len(shpath)-1,1])
+        link = []
+        for i in range(len(shpath)-1):
+            linklen[i] = float((graph.get(shpath[i])).get(shpath[i+1]))
+            link.append((edges.get(shpath[i])).get(shpath[i+1]))
+        return linklen, link
     
+def requestgen(graph):
+            src = random.choice(list(graph.keys()))
+            des = random.choice(list(graph.keys()))
+            while des == src:
+                des = random.choice(list(graph.keys()))
+            return src, des
+
+# pre-determine 100 random requests 
+numreq = 100       
+rsrc = []
+rdes = []
+for i in range(numreq):
+    rsc, rds = requestgen(graph)
+    rsrc.append(rsc)
+    rdes.append(rds)   
+    
+# %%
+# generate shortest path between each pair of nodes and store the path and distance
+
+M = 4
+if M == 4:
+    FT = 2.11  # QPSK
+elif M == 16:
+    FT = 4.65   # 16-QAM
+elif M == 64:
+    FT = 11.6   # 64-QAM
+else:
+    print("unrecognised modulation format -- set FT for QPSK")
+    FT = 2.11  # QPSK
+
+
+def basicrta(FT, graph, edges, Rsource, Rdest):
+    dis = []
+    path = []
+    for i in range(numnodes):    
+        for j in range(numnodes): 
+            d, p = dijkstra({'1':{'2':2100,'3':3000,'8':4800},'2':{'1':2100,'3':1200,'4':1500},'3':{'1':3000,'2':1200,'6':3600},    
+             '4':{'2':1500,'5':1200,'11':3900},'5':{'4':1200,'6':2400,'7':1200}, '6':{'3':3600,'5':2400,'10':2100,'14':3600},
+             '7':{'5':1200,'8':1500,'10':2700}, '8':{'1':4800,'7':1500,'9':1500}, '9':{'8':1500,'10':1500,'12':600,'13':600},
+             '10':{'6':2100,'7':2700,'9':1500}, '11':{'4':3900,'12':1200,'13':1500}, '12':{'9':600,'11':1200,'14':600},
+             '13':{'9':600,'11':1500,'14':300}, '14':{'6':3600,'12':600,'13':300}
+             }, nodes[i], nodes[j])
+            if i == j:
+                continue  # don't include lightpaths of length 0
+            else:
+                dis.append(d)
+                path.append(p)
+    pathdists = []
+    links = []                                                
+    for i in range(np.size(path)):
+        pathdists.append(getlinklen(path[i],graphnorm,edges)[0])
+        links.append(getlinklen(path[i],graph,edges)[1])
+    # ================ FEC thresholds ========================= these correspond to a BER of 2e-2
+    if M == 4:
+        FT = 2.11  # QPSK
+    elif M == 16:
+        FT = 4.65   # 16-QAM
+    elif M == 64:
+        FT = 11.6   # 64-QAM
+    else:
+        print("unrecognised modulation format -- set FT for QPSK")
+        FT = 2.11  # QPSK
+    estlam = np.zeros([numedges,numlam]) # 0 for empty, 1 for occupied
+    reqlams = 0
+    numreq = 100
+    randdist = []
+    for i in range(numreq):
+        # update for online learning 
+        #  choose random source and destination nodes 
+
+        #Rsource, Rdest = requestgen(graph)
+    
+        # find corresponding path index
+        def srcdestcheck(path,src,dest):
+            if path[0] == src and path[-1] == dest:
+                return True  
+        randpathind = [j for j in range(np.size(path)) if  srcdestcheck(path[j], rsrc[i], rdes[i])][0]
+        #print("selected request index: " + str(randpathind))
+        randedges = links[randpathind]  # selected edges for request 
+        randdist.append(sum(pathdists[randpathind]))
+        lamslot = [np.where(estlam[randedges[i]-1]==0)[0][0] for i in range(np.size(links[randpathind]))] # first available wavelength slot for this edge
+        if np.size(lamslot) == 0:
+            print("all wavelength slots are full")
+            continue
+        # need to check SNR for all the edges in the path
+        edgesuc = 0
+        for j in range(np.size(linkSNR[randedges],0)):
+            if linkSNR[randedges][j][linkPoptind] > FT:
+                #print("reach satisfied on edge " + str(randedges[j]))
+                edgesuc = edgesuc + 1
+            else:
+                print("request " + str(i) + " denied -- insufficient reach on edge " + str(randedges[j]))
+                break   
+        if edgesuc == np.size(linkSNR[randedges],0):
+            #print("successfully allocated request " + str(i))
+            reqlams = reqlams + 1
+            for l in range(len(randedges)):
+                estlam[randedges[l]-1][lamslot[l]] = 1
+    ava = (reqlams/numreq)*100 
+    tottime = (sum(randdist)*1e3*1.468)/299792458
+    print("Normal availability = " + str(ava) + "%") 
+    print("Variance-aided total traversal time = " + str('%.2f' % tottime) + "s")
+    return path, ava, estlam, reqlams, tottime
+
+pathnorm, ava, estl, reql, tottime = basicrta(FT,graph,edges,rsrc,rdes)
+
+# %% 
+def varrta(FT,graph,edges,Rsource,Rdest):
+    dis = []
+    path = []
+    for i in range(numnodes):    
+        for j in range(numnodes): 
+            d, p = dijkstra({'1':{'2':gwt[0][0],'3':gwt[1][0],'8':gwt[2][0]},'2':{'1':gwt[3][0],'3':gwt[4][0],'4':gwt[5][0]},'3':{'1':gwt[6][0],'2':gwt[7][0],'6':gwt[8][0]},    
+             '4':{'2':gwt[9][0],'5':gwt[10][0],'11':gwt[11][0]},'5':{'4':gwt[12][0],'6':gwt[13][0],'7':gwt[14][0]}, '6':{'3':gwt[15][0],'5':gwt[16][0],'10':gwt[17][0],'14':gwt[18][0]},
+             '7':{'5':gwt[19][0],'8':gwt[20][0],'10':gwt[21][0]}, '8':{'1':gwt[22][0],'7':gwt[23][0],'9':gwt[24][0]}, '9':{'8':gwt[25][0],'10':gwt[26][0],'12':gwt[27][0],'13':gwt[28][0]},
+             '10':{'6':gwt[29][0],'7':gwt[30][0],'9':gwt[31][0]}, '11':{'4':gwt[32][0],'12':gwt[33][0],'13':gwt[34][0]}, '12':{'9':gwt[35][0],'11':gwt[36][0],'14':gwt[37][0]},
+             '13':{'9':gwt[38][0],'11':gwt[39][0],'14':gwt[40][0]}, '14':{'6':gwt[41][0],'12':gwt[42][0],'13':gwt[43][0]}
+             }, nodes[i], nodes[j])
+            if i == j:
+                continue  # don't include lightpaths of length 0
+            else:
+                dis.append(d)
+                path.append(p)
+    pathdists = []
+    links = []                                                
+    for i in range(np.size(path)):
+        pathdists.append(getlinklen(path[i],graphnorm,edges)[0])
+        links.append(getlinklen(path[i],graph,edges)[1])
+    # ================ FEC thresholds ========================= these correspond to a BER of 2e-2
+    
+    estlam = np.zeros([numedges,numlam]) # 0 for empty, 1 for occupied
+    reqlams = 0
+    numreq = 100
+    randdist = []
+    for i in range(numreq):
+        # update for online learning 
+        #  choose random source and destination nodes 
+        
+        Rsource, Rdest = requestgen(graph)
+        # find corresponding path index
+        def srcdestcheck(path,src,dest):
+            if path[0] == src and path[-1] == dest:
+                return True  
+        randpathind = [j for j in range(np.size(path)) if  srcdestcheck(path[j], rsrc[i], rdes[i])][0]
+        #print("selected request index: " + str(randpathind))
+        randedges = links[randpathind]  # selected edges for request 
+        randdist.append(sum(pathdists[randpathind]))
+        lamslot = [np.where(estlam[randedges[i]-1]==0)[0][0] for i in range(np.size(links[randpathind]))] # first available wavelength slot for this edge
+        if np.size(lamslot) == 0:
+            print("all wavelength slots are full")
+            continue
+        # need to check SNR for all the edges in the path
+        edgesuc = 0
+        for j in range(np.size(linkSNR[randedges],0)):
+            if linkSNR[randedges][j][linkPoptind] > FT:
+                #print("reach satisfied on edge " + str(randedges[j]))
+                edgesuc = edgesuc + 1
+            else:
+                print("request " + str(i) + " denied -- insufficient reach on edge " + str(randedges[j]))
+                break   
+        if edgesuc == np.size(linkSNR[randedges],0):
+            #print("successfully allocated request " + str(i))
+            reqlams = reqlams + 1
+            for l in range(len(randedges)):
+                estlam[randedges[l]-1][lamslot[l]] = 1
+    ava = (reqlams/numreq)*100 
+    tottime = ((sum(randdist)*1e3*1.468)/299792458)[0]
+    print("Variance-aided availability = " + str(ava) + "%") 
+    print("Variance-aided total traversal time = " + str('%.2f' % tottime) + "s")
+    return path, ava, estlam, reqlams, tottime
+    
+
+# find optimum from the predictive mean
+prmnopt = [np.argmax(prmn[i]) for i in range(np.size(prmn,0))]
+#gsig = [sigma[i][prmnopt[i]] for i in range(np.size(prmn,0))]  # use predictive mean to get optimum Pch
+#gwt = [edgelens[i]*gsig[i] for i in range(np.size(prmn,0))]
+gsig = [sigma[i][linkPoptind] for i in range(np.size(prmn,0))]
+gwt = [edgelens[i]*gsig[i] for i in range(np.size(prmn,0))]
+graphvar = {'1':{'2':gwt[0][0],'3':gwt[1][0],'8':gwt[2][0]},'2':{'1':gwt[3][0],'3':gwt[4][0],'4':gwt[5][0]},'3':{'1':gwt[6][0],'2':gwt[7][0],'6':gwt[8][0]},    
+             '4':{'2':gwt[9][0],'5':gwt[10][0],'11':gwt[11][0]},'5':{'4':gwt[12][0],'6':gwt[13][0],'7':gwt[14][0]}, '6':{'3':gwt[15][0],'5':gwt[16][0],'10':gwt[17][0],'14':gwt[18][0]},
+             '7':{'5':gwt[19][0],'8':gwt[20][0],'10':gwt[21][0]}, '8':{'1':gwt[22][0],'7':gwt[23][0],'9':gwt[24][0]}, '9':{'8':gwt[25][0],'10':gwt[26][0],'12':gwt[27][0],'13':gwt[28][0]},
+             '10':{'6':gwt[29][0],'7':gwt[30][0],'9':gwt[31][0]}, '11':{'4':gwt[32][0],'12':gwt[33][0],'13':gwt[34][0]}, '12':{'9':gwt[35][0],'11':gwt[36][0],'14':gwt[37][0]},
+             '13':{'9':gwt[38][0],'11':gwt[39][0],'14':gwt[40][0]}, '14':{'6':gwt[41][0],'12':gwt[42][0],'13':gwt[43][0]}
+             }        
+
+pathv, avav, estlamv, reqlamsv, tottimev  = varrta(FT,graphvar,edges,rsrc,rdes)
 
 #%% ====================================================================================
 

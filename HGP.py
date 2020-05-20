@@ -21,6 +21,7 @@ from scipy import special
 import multiprocessing
 from GHquad import GHquad
 import matplotlib
+import math
 #matplotlib.rc_file_defaults()   # use to return to Matplotlib defaults 
 
 #x = np.genfromtxt(open("Pchripple.csv", "r"), delimiter=",", dtype =float)
@@ -58,16 +59,17 @@ Pch = np.genfromtxt(open("linkPch.csv", "r"), delimiter=",", dtype =float)
     #wsd = 0.01 + 0.25*(1 - np.sin(2.5*x))**2
     #y = np.random.normal(wmean, wsd)
     
-def HGPfunc(x,y):
+def HGPfunc(x,y,plot):
 
 
     y = y.reshape(-1,1)
     x = x.reshape(-1,1)
-    plt.plot(x,y,'+')
-    plt.xlabel("Pch (dBm)")
-    plt.ylabel("SNR (dB)")
-    plt.savefig('Adataset.png', dpi=200)
-    plt.show()
+    if plot:
+        plt.plot(x,y,'+')
+        plt.xlabel("Pch (dBm)")
+        plt.ylabel("SNR (dB)")
+        plt.savefig('Adataset.png', dpi=200)
+        plt.show()
     n = np.size(x)
     scaler = StandardScaler().fit(y)
     y = scaler.transform(y)
@@ -162,18 +164,26 @@ def HGPfunc(x,y):
         rf = np.empty([numiters,n])
         i = 0
         while i < numiters:        
+            breakwhile = False
             # Step 2: estimate empirical noise levels z 
             #k1is4,k2is4  = np.random.uniform(1e-2,1e2,2)
             k1is3, k1is4  =  np.random.uniform(1e-2,1e2,2)
             k2is3, k2is4  =  np.random.uniform(1e-1,1e2,2)
             z = np.empty([n,1])
             for j in range(n):
-                np.random.seed()
+                #np.random.seed()
                 normdraw = normal(fmst[j], varfmst[j]**0.5, s).reshape(s,1)
                 z[j] = np.log((1/s)*0.5*sum((y[j] - normdraw)**2))
+                if math.isnan(z[j]): # True for NaN values
+                    breakwhile = True
+                    break
+            if breakwhile:
+                print("Nan value in z -- restarting iter "+ str(i))
+                continue
             #  Step 3: estimate GP2 on D' - (x,z)
             kernel2 = C(k1is3, (1e-2, 1e2)) * RBF(k2is3, (0.5, 1e2)) 
             gpr2 = GaussianProcessRegressor(kernel=kernel2, n_restarts_optimizer = numrestarts, normalize_y=False, alpha=np.var(z))
+            
             gpr2.fit(x, z)
             ystar2, sigma2 = gpr2.predict(x, return_std=True )
             sigma2 = (sigma2**2 + 1)**0.5
@@ -219,29 +229,30 @@ def HGPfunc(x,y):
     fmstf,varfmstf, lmloptf, MSE, rf,NLPD = hetloopSK(ystar1,var1,numiters,numrestarts)
     duration = time.time() - start_time
     # %% learning curve
-    numiterations = np.linspace(1,numiters,numiters,dtype=int)
-    plt.plot(numiterations,MSE,'+')
-    plt.plot(numiterations,MSE)
-    plt.ylabel('MSE')  
-    plt.xlabel('Iterations')
-    plt.savefig('AMSE.png', dpi=200)
-    plt.show()
-    
-    # =============================================================================
-    plt.plot(numiterations,NLPD,'+')
-    plt.plot(numiterations,NLPD)
-    plt.ylabel('NLPD')  
-    plt.xlabel('Iterations')
-    plt.savefig('ANLPD.png', dpi=200)
-    plt.show()
-    # =============================================================================
-    
-    plt.plot(numiterations, lmloptf,'+')
-    plt.plot(numiterations, lmloptf)
-    plt.ylabel('LML')  
-    plt.xlabel('Iterations')
-    plt.savefig('ALML.png', dpi=200)
-    plt.show()
+    if plot:
+        numiterations = np.linspace(1,numiters,numiters,dtype=int)
+        plt.plot(numiterations,MSE,'+')
+        plt.plot(numiterations,MSE)
+        plt.ylabel('MSE')  
+        plt.xlabel('Iterations')
+        plt.savefig('AMSE.png', dpi=200)
+        plt.show()
+        
+        # =============================================================================
+        plt.plot(numiterations,NLPD,'+')
+        plt.plot(numiterations,NLPD)
+        plt.ylabel('NLPD')  
+        plt.xlabel('Iterations')
+        plt.savefig('ANLPD.png', dpi=200)
+        plt.show()
+        # =============================================================================
+        
+        plt.plot(numiterations, lmloptf,'+')
+        plt.plot(numiterations, lmloptf)
+        plt.ylabel('LML')  
+        plt.xlabel('Iterations')
+        plt.savefig('ALML.png', dpi=200)
+        plt.show()
     
     # %%   plotting
     ind = numiters - 1
@@ -287,56 +298,57 @@ def HGPfunc(x,y):
     fmstps4i4 = scaler.inverse_transform(fmstps44)
     fmstms4i4 = scaler.inverse_transform(fmstms44)
     
-    plt.plot(x, yi,'+')
-    plt.plot(x, fmst4i, label = 'HGPR')
-    # =============================================================================
-    plt.fill(np.concatenate([x, x[::-1]]),
-             np.concatenate([fmstps4i,
-                            (fmstms4i)[::-1]]),
-             alpha=0.3, fc='b', ec='None', label='$2 \sigma$')
-    plt.fill(np.concatenate([x, x[::-1]]),
-             np.concatenate([fmstps4i2,
-                            (fmstps4i)[::-1]]),
-             alpha=0.3, fc='r', ec='None', label='$3 \sigma$')
-    plt.fill(np.concatenate([x, x[::-1]]),
-             np.concatenate([fmstms4i,
-                            (fmstms4i2)[::-1]]),
-             alpha=0.3, fc='r', ec='None')
-    plt.fill(np.concatenate([x, x[::-1]]),
-             np.concatenate([fmstps4i3,
-                            (fmstps4i2)[::-1]]),
-             alpha=0.3, fc='y', ec='None', label='$4 \sigma$')
-    plt.fill(np.concatenate([x, x[::-1]]),
-             np.concatenate([fmstms4i2,
-                            (fmstms4i3)[::-1]]),
-             alpha=0.3, fc='y', ec='None')
-    plt.fill(np.concatenate([x, x[::-1]]),
-             np.concatenate([fmstps4i4,
-                            (fmstps4i3)[::-1]]),
-             alpha=0.3, fc='g', ec='None', label='$5 \sigma$')
-    plt.fill(np.concatenate([x, x[::-1]]),
-             np.concatenate([fmstms4i3,
-                            (fmstms4i4)[::-1]]),
-             alpha=0.3, fc='g', ec='None')
-    #plt.axis([x[0],x[-1],11.3,14.7])
-    plt.xlabel('$P_{ch}$(dBm)')  
-    plt.ylabel('SNR(dB)')
-    plt.legend(loc="lower right",ncol=3)
-    plt.savefig('AHGPfit.pdf', dpi=200,bbox_inches='tight')
-    plt.show()
-    
-    
-    # %% ECOC sigma plot 
-    plt.plot(x,sigs4,color='k',LineStyle='-.',label='GP1')
-    plt.plot(x,rf[ind]**0.5,color='k',LineStyle='-',label='$\sqrt{r(x)}$ 1')
-    #plt.plot(x,sigs420,color='k',LineStyle='--',label='GP2')
-    #plt.plot(x,rf20**0.5,color='k',LineStyle=':',label='$\sqrt{r(x)}$ 2')
-    plt.xlabel('$P_{ch}$(dBm)')  
-    plt.ylabel('$\sigma$(dB)')
-    plt.legend()
-    #plt.savefig('NoisefunctionECOCcombined.pdf', dpi=200,bbox_inches='tight')
-    plt.savefig('Noisefunctionnum50.pdf', dpi=200,bbox_inches='tight')
-    plt.show()
+    if plot:
+        plt.plot(x, yi,'+')
+        plt.plot(x, fmst4i, label = 'HGPR')
+        # =============================================================================
+        plt.fill(np.concatenate([x, x[::-1]]),
+                 np.concatenate([fmstps4i,
+                                (fmstms4i)[::-1]]),
+                 alpha=0.3, fc='b', ec='None', label='$2 \sigma$')
+        plt.fill(np.concatenate([x, x[::-1]]),
+                 np.concatenate([fmstps4i2,
+                                (fmstps4i)[::-1]]),
+                 alpha=0.3, fc='r', ec='None', label='$3 \sigma$')
+        plt.fill(np.concatenate([x, x[::-1]]),
+                 np.concatenate([fmstms4i,
+                                (fmstms4i2)[::-1]]),
+                 alpha=0.3, fc='r', ec='None')
+        plt.fill(np.concatenate([x, x[::-1]]),
+                 np.concatenate([fmstps4i3,
+                                (fmstps4i2)[::-1]]),
+                 alpha=0.3, fc='y', ec='None', label='$4 \sigma$')
+        plt.fill(np.concatenate([x, x[::-1]]),
+                 np.concatenate([fmstms4i2,
+                                (fmstms4i3)[::-1]]),
+                 alpha=0.3, fc='y', ec='None')
+        plt.fill(np.concatenate([x, x[::-1]]),
+                 np.concatenate([fmstps4i4,
+                                (fmstps4i3)[::-1]]),
+                 alpha=0.3, fc='g', ec='None', label='$5 \sigma$')
+        plt.fill(np.concatenate([x, x[::-1]]),
+                 np.concatenate([fmstms4i3,
+                                (fmstms4i4)[::-1]]),
+                 alpha=0.3, fc='g', ec='None')
+        #plt.axis([x[0],x[-1],11.3,14.7])
+        plt.xlabel('$P_{ch}$(dBm)')  
+        plt.ylabel('SNR(dB)')
+        plt.legend(loc="lower right",ncol=3)
+        plt.savefig('AHGPfit.pdf', dpi=200,bbox_inches='tight')
+        plt.show()
+        
+        
+        # %% ECOC sigma plot 
+        plt.plot(x,sigs4,color='k',LineStyle='-.',label='GP1')
+        plt.plot(x,rf[ind]**0.5,color='k',LineStyle='-',label='$\sqrt{r(x)}$ 1')
+        #plt.plot(x,sigs420,color='k',LineStyle='--',label='GP2')
+        #plt.plot(x,rf20**0.5,color='k',LineStyle=':',label='$\sqrt{r(x)}$ 2')
+        plt.xlabel('$P_{ch}$(dBm)')  
+        plt.ylabel('$\sigma$(dB)')
+        plt.legend()
+        #plt.savefig('NoisefunctionECOCcombined.pdf', dpi=200,bbox_inches='tight')
+        plt.savefig('Noisefunctionnum50.pdf', dpi=200,bbox_inches='tight')
+        plt.show()
     # %% BER transform
     
     M = 16
@@ -370,47 +382,47 @@ def HGPfunc(x,y):
     Bfmstms4 = BERcalc(M, fmstms4i4)
     
     
-    
-    #ax = plt.subplot(111)
-    plt.plot(x,By,'+')
-    plt.plot(x, Bfmst, label = 'HGP')
-    # =============================================================================
-    plt.fill(np.concatenate([x, x[::-1]]),
-             np.concatenate([Bfmstps,
-                            (Bfmstms)[::-1]]),
-             alpha=0.3, fc='b', ec='None', label='$2 \sigma$')
-    plt.fill(np.concatenate([x, x[::-1]]),
-             np.concatenate([Bfmstps2,
-                            (Bfmstps)[::-1]]),
-             alpha=0.3, fc='r', ec='None', label='$3 \sigma$')
-    plt.fill(np.concatenate([x, x[::-1]]),
-             np.concatenate([Bfmstms,
-                            (Bfmstms2)[::-1]]),
-             alpha=0.3, fc='r', ec='None')
-    plt.fill(np.concatenate([x, x[::-1]]),
-             np.concatenate([Bfmstps3,
-                            (Bfmstps2)[::-1]]),
-             alpha=0.3, fc='y', ec='None', label='$4 \sigma$')
-    plt.fill(np.concatenate([x, x[::-1]]),
-             np.concatenate([Bfmstms2,
-                            (Bfmstms3)[::-1]]),
-             alpha=0.3, fc='y', ec='None')
-    plt.fill(np.concatenate([x, x[::-1]]),
-             np.concatenate([Bfmstps4,
-                            (Bfmstps3)[::-1]]),
-             alpha=0.3, fc='g', ec='None', label='$5 \sigma$')
-    plt.fill(np.concatenate([x, x[::-1]]),
-             np.concatenate([Bfmstms3,
-                            (Bfmstms4)[::-1]]),
-             alpha=0.3, fc='g', ec='None')
-    #ax.set_yticklabels(["{:.1e}".format(t) for t in ax.get_yticks()])
-    #plt.axis([x[0],x[-1],2e-4,1.15e-3])
-    plt.xlabel('$P_{ch}$(dBm)')  
-    plt.ylabel('BER (AU)')
-    #plt.yticks([])
-    plt.legend()
-    #plt.savefig('AHGPber.pdf', dpi=200)
-    plt.show()
+    if plot:
+        #ax = plt.subplot(111)
+        plt.plot(x,By,'+')
+        plt.plot(x, Bfmst, label = 'HGP')
+        # =============================================================================
+        plt.fill(np.concatenate([x, x[::-1]]),
+                 np.concatenate([Bfmstps,
+                                (Bfmstms)[::-1]]),
+                 alpha=0.3, fc='b', ec='None', label='$2 \sigma$')
+        plt.fill(np.concatenate([x, x[::-1]]),
+                 np.concatenate([Bfmstps2,
+                                (Bfmstps)[::-1]]),
+                 alpha=0.3, fc='r', ec='None', label='$3 \sigma$')
+        plt.fill(np.concatenate([x, x[::-1]]),
+                 np.concatenate([Bfmstms,
+                                (Bfmstms2)[::-1]]),
+                 alpha=0.3, fc='r', ec='None')
+        plt.fill(np.concatenate([x, x[::-1]]),
+                 np.concatenate([Bfmstps3,
+                                (Bfmstps2)[::-1]]),
+                 alpha=0.3, fc='y', ec='None', label='$4 \sigma$')
+        plt.fill(np.concatenate([x, x[::-1]]),
+                 np.concatenate([Bfmstms2,
+                                (Bfmstms3)[::-1]]),
+                 alpha=0.3, fc='y', ec='None')
+        plt.fill(np.concatenate([x, x[::-1]]),
+                 np.concatenate([Bfmstps4,
+                                (Bfmstps3)[::-1]]),
+                 alpha=0.3, fc='g', ec='None', label='$5 \sigma$')
+        plt.fill(np.concatenate([x, x[::-1]]),
+                 np.concatenate([Bfmstms3,
+                                (Bfmstms4)[::-1]]),
+                 alpha=0.3, fc='g', ec='None')
+        #ax.set_yticklabels(["{:.1e}".format(t) for t in ax.get_yticks()])
+        #plt.axis([x[0],x[-1],2e-4,1.15e-3])
+        plt.xlabel('$P_{ch}$(dBm)')  
+        plt.ylabel('BER (AU)')
+        #plt.yticks([])
+        plt.legend()
+        #plt.savefig('AHGPber.pdf', dpi=200)
+        plt.show()
     
     
     # %% ================================ Mutual information transform ===========================================
@@ -532,21 +544,68 @@ def HGPfunc(x,y):
     print("HGP fitting duration: " + str(duration)) 
     
     return fmst4i, fmstps4i, fmstms4i, sigs4, rf[ind]**0.5
-    
+   
 
-y = SNR[5]
-x = Pch
 
-    
-prmn, prmnp, prmnn, sig, sigrf = HGPfunc(x,y)
 
 # %%
 
-plt.plot(x,y,'+')
-plt.plot(x,prmn)
+x = Pch
+
+prmn = np.empty([np.size(SNR,0),np.size(SNR,1)])
+prmnp = np.empty([np.size(SNR,0),np.size(SNR,1)])
+prmnn = np.empty([np.size(SNR,0),np.size(SNR,1)])
+sig = np.empty([np.size(SNR,0),np.size(SNR,1)])
+sigrf = np.empty([np.size(SNR,0),np.size(SNR,1)])
+for i in range(np.size(SNR,0)):
+    prmn[i], prmnp[i], prmnn[i], sig[i], sigrf[i] = HGPfunc(x,SNR[i],False)
+
+#test1, test2, test3, test4, test5 = HGPfunc(x,SNR[22],False)
+
+
+# %% 
+
+# =============================================================================
+# plt.plot(Pch,SNR[22],'+')
+# plt.plot(Pch,test1)
+# plt.fill(np.concatenate([x, x[::-1]]),
+#                  np.concatenate([test2,
+#                                 (test3)[::-1]]),
+#                  alpha=0.3, fc='b', ec='None', label='$2 \sigma$')
+# plt.xlabel('$P_{ch}$(dBm)')  
+# plt.ylabel('SNR (dB)')
+# #plt.legend()
+# #plt.savefig('AHGPMI.pdf', dpi=200)
+# plt.show()
+# 
+# plt.plot(x,test4,color='k',LineStyle='-.',label='GP1')
+# plt.plot(x,test5,color='k',LineStyle='-',label='$\sqrt{r(x)}$ 1')
+# plt.xlabel('$P_{ch}$(dBm)')  
+# plt.ylabel('$\sigma$(dB)')
+# plt.legend()
+# #plt.savefig('NoisefunctionECOCcombined.pdf', dpi=200,bbox_inches='tight')
+# #plt.savefig('Noisefunctionnum50.pdf', dpi=200,bbox_inches='tight')
+# plt.show()
+# =============================================================================
+
+
+
+# %%
+
+np.savetxt('prmn.csv', prmn, delimiter=',') 
+np.savetxt('prmnp.csv', prmnp, delimiter=',')
+np.savetxt('prmnn.csv', prmnn, delimiter=',')
+np.savetxt('sig.csv', sig, delimiter=',')
+np.savetxt('sigrf.csv', sigrf, delimiter=',')
+
+
+# %%
+
+plt.plot(x,SNR[0],'+')
+plt.plot(x,prmn[0])
 plt.fill(np.concatenate([x, x[::-1]]),
-                 np.concatenate([prmnp,
-                                (prmnn)[::-1]]),
+                 np.concatenate([prmnp[0],
+                                (prmnn[0])[::-1]]),
                  alpha=0.3, fc='b', ec='None', label='$2 \sigma$')
 plt.xlabel('$P_{ch}$(dBm)')  
 plt.ylabel('SNR (dB)')
@@ -554,10 +613,8 @@ plt.legend()
 #plt.savefig('AHGPMI.pdf', dpi=200)
 plt.show()
 
-
-
-plt.plot(x,sig,color='k',LineStyle='-.',label='GP1')
-plt.plot(x,sigrf,color='k',LineStyle='-',label='$\sqrt{r(x)}$ 1')
+plt.plot(x,sig[0],color='k',LineStyle='-.',label='GP1')
+plt.plot(x,sigrf[0],color='k',LineStyle='-',label='$\sqrt{r(x)}$ 1')
 plt.xlabel('$P_{ch}$(dBm)')  
 plt.ylabel('$\sigma$(dB)')
 plt.legend()
