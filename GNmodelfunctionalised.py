@@ -537,7 +537,7 @@ def requestgen(graph):
             return src, des
 
 # pre-determine 100 random requests 
-numreq = 100       
+numreq = 100      
 rsrc = []
 rdes = []
 for i in range(numreq):
@@ -573,6 +573,7 @@ def basicrta(FT, graph, edges, Rsource, Rdest, showres):
     
     estlam = np.zeros([numedges,numlam]) # 0 for empty, 1 for occupied
     reqlams = 0
+    conten = 0
     numreq = np.size(Rsource)
     randdist = []
     for i in range(numreq):
@@ -590,11 +591,18 @@ def basicrta(FT, graph, edges, Rsource, Rdest, showres):
         #print("selected request index: " + str(randpathind))
         randedges = links[randpathind]  # selected edges for request 
         randdist.append(sum(pathdists[randpathind]))
-        #print(k)
-        lamslot = [np.where(estlam[randedges[k]]==0)[0][0] for k in range(np.size(randedges))] # first available wavelength slot for this edge
-        if np.size(lamslot) == 0:
-            print("all wavelength slots are full")
+        lamconten = False
+        testlamslot = [np.where(estlam[randedges[k]]==0) for k in range(np.size(randedges))]
+        for g in range(np.size(randedges)):
+            if np.size(testlamslot[g]) == 0:
+                #print("all wavelength slots are full")
+                lamconten = True
+                continue
+        if lamconten:
+            conten = conten + 1
             continue
+        lamslot = [np.where(estlam[randedges[k]]==0)[0][0] for k in range(np.size(randedges))] # first available wavelength slot for this edge
+        
         # need to check SNR for all the edges in the path
         edgesuc = 0
         for j in range(np.size(linkSNR[randedges],0)):
@@ -608,13 +616,13 @@ def basicrta(FT, graph, edges, Rsource, Rdest, showres):
             #print("successfully allocated request " + str(i))
             reqlams = reqlams + 1
             for l in range(len(randedges)):
-                estlam[randedges[l]-1][lamslot[l]] = 1
+                estlam[randedges[l]][lamslot[l]] = 1
     ava = (reqlams/numreq)*100 
     tottime = (sum(randdist)*1e3*1.468)/299792458
     if showres:
         print("Normal availability = " + str(ava) + "%") 
         print("Normal total traversal time = " + str('%.2f' % tottime) + "s")
-    return ava, estlam, reqlams, tottime
+    return ava, estlam, reqlams, tottime, conten
 
 #ava, estl, reql, tottime = basicrta(FT,graph,edges,rsrc,rdes, False)
 
@@ -642,6 +650,7 @@ def varrta(FT,graph,edges,Rsource,Rdest,showres):
     
     estlam = np.zeros([numedges,numlam]) # 0 for empty, 1 for occupied
     reqlams = 0
+    conten = 0
     numreq = np.size(Rsource)
     randdist = []
     for i in range(numreq):
@@ -658,10 +667,18 @@ def varrta(FT,graph,edges,Rsource,Rdest,showres):
         #print("selected request index: " + str(randpathind))
         randedges = links[randpathind]  # selected edges for request 
         randdist.append(sum(pathdists[randpathind]))
-        lamslot = [np.where(estlam[randedges[k]]==0)[0][0] for k in range(np.size(links[randpathind]))] # first available wavelength slot for this edge
-        if np.size(lamslot) == 0:
-            print("all wavelength slots are full")
+        lamconten = False
+        testlamslot = [np.where(estlam[randedges[k]]==0) for k in range(np.size(randedges))]
+        for g in range(np.size(randedges)):
+            if np.size(testlamslot[g]) == 0:
+                #print("all wavelength slots are full")
+                lamconten = True
+                continue
+        if lamconten:
+            conten = conten + 1
             continue
+        lamslot = [np.where(estlam[randedges[k]]==0)[0][0] for k in range(np.size(links[randpathind]))] # first available wavelength slot for this edge
+        
         # need to check SNR for all the edges in the path
         edgesuc = 0
         for j in range(np.size(linkSNR[randedges],0)):
@@ -675,13 +692,13 @@ def varrta(FT,graph,edges,Rsource,Rdest,showres):
             #print("successfully allocated request " + str(i))
             reqlams = reqlams + 1
             for l in range(len(randedges)):
-                estlam[randedges[l]-1][lamslot[l]] = 1
+                estlam[randedges[l]][lamslot[l]] = 1
     ava = (reqlams/numreq)*100 
     tottime = ((sum(randdist)*1e3*1.468)/299792458)[0]
     if showres:
         print("Variance-aided availability = " + str(ava) + "%") 
         print("Variance-aided total traversal time = " + str('%.2f' % tottime) + "s")
-    return ava, estlam, reqlams, tottime
+    return ava, estlam, reqlams, tottime, conten
     
 
 # find optimum from the predictive mean
@@ -705,7 +722,7 @@ graphvared = {'1':{'2':gwte[0][0],'3':gwte[1][0],'8':gwte[2][0]},'2':{'1':gwte[3
 
 #avav, estlamv, reqlamsv, tottimev  = varrta(FT,graphvar,edges,rsrc,rdes,False)
 
-
+# %%
 def varrtap(FT,graph,edges,Rsource,Rdest,showres):
     dis = []
     path = []
@@ -730,30 +747,39 @@ def varrtap(FT,graph,edges,Rsource,Rdest,showres):
     
     estlam = np.zeros([numedges,numlam]) # 0 for empty, 1 for occupied
     reqlams = 0
+    conten = 0
     numreq = np.size(Rsource)
     randdist = []
+    conf = []
     for i in range(numreq):
         # update for online learning 
         #  choose random source and destination nodes 
-        
         #Rsource, Rdest = requestgen(graph)
         # find corresponding path index
         def srcdestcheck(path,src,dest):
             if path[0] == src and path[-1] == dest:
                 return True  
-
         randpathind = [j for j in range(np.size(path)) if  srcdestcheck(path[j], Rsource[i], Rdest[i])][0]
         #print("selected request index: " + str(randpathind))
         randedges = links[randpathind]  # selected edges for request 
         randdist.append(sum(pathdists[randpathind]))
-        lamslot = [np.where(estlam[randedges[k]]==0)[0][0] for k in range(np.size(links[randpathind]))] # first available wavelength slot for this edge
-        if np.size(lamslot) == 0:
-            print("all wavelength slots are full")
+        lamconten = False
+        testlamslot = [np.where(estlam[randedges[k]]==0) for k in range(np.size(randedges))]
+        for g in range(np.size(randedges)):
+            if np.size(testlamslot[g]) == 0:
+                #print("all wavelength slots are full")
+                lamconten = True
+                continue
+        if lamconten:
+            conten = conten + 1
             continue
+        lamslot = [np.where(estlam[randedges[k]]==0)[0][0] for k in range(np.size(links[randpathind]))] # first available wavelength slot for this edge
         # need to check SNR for all the edges in the path
         edgesuc = 0
         for j in range(np.size(linkSNR[randedges],0)): # for each edge in the path
-            if linkSNR[randedges][j][prmnopt[randedges[j]]] > FT:
+            #if linkSNR[randedges][j][prmnopt[randedges[j]]] > FT:
+            if prmn[randedges][j][prmnopt[randedges[j]]] > FT:
+                conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT)/gsige[randedges[j]])
                 #print("reach satisfied on edge " + str(randedges[j]))
                 edgesuc = edgesuc + 1
             else:
@@ -763,13 +789,18 @@ def varrtap(FT,graph,edges,Rsource,Rdest,showres):
             #print("successfully allocated request " + str(i))
             reqlams = reqlams + 1
             for l in range(len(randedges)):
-                estlam[randedges[l]-1][lamslot[l]] = 1
+                
+                estlam[randedges[l]][lamslot[l]] = 1
     ava = (reqlams/numreq)*100 
     tottime = ((sum(randdist)*1e3*1.468)/299792458)[0]
     if showres:
         print("Variance-aided availability = " + str(ava) + "%") 
         print("Variance-aided total traversal time = " + str('%.2f' % tottime) + "s")
-    return ava, estlam, reqlams, tottime
+    return ava, estlam, reqlams, tottime, conf, conten
+
+test1, test2, test3, test4, test5, test6 = varrtap(2.11,graph,edges,rsrc,rdes,False)
+
+
 
 # %%
 
@@ -785,15 +816,20 @@ else:
     FT = 2.11  # QPSK
 
 
+
+# ========== this loop resets the network loading after numreqs, numtests times  ===========
 def testrout(numtests,showres):
-    
+#     
     ava = np.empty([numtests,1])
     tottime = np.empty([numtests,1])
+    conten = np.empty([numtests,1])
     avav = np.empty([numtests,1])
     tottimev = np.empty([numtests,1])
+    contenv = np.empty([numtests,1])
     avavp = np.empty([numtests,1])
     tottimevp = np.empty([numtests,1])
-    numreq = 100 
+    contenvp = np.empty([numtests,1])
+    numreq = 1000 
     for i in range(numtests):
         # pre-determine 100 random requests 
         
@@ -803,19 +839,23 @@ def testrout(numtests,showres):
             rsct, rdst = requestgen(graph)
             rsrct.append(rsct)
             rdest.append(rdst)
-        ava[i], _, _, tottime[i]  = basicrta(FT,graphvar,edges,rsrct,rdest,showres)
-        avav[i], _, _, tottimev[i]  = varrta(FT,graphvar,edges,rsrct,rdest,showres)
-        avavp[i], _, _, tottimevp[i]  = varrtap(FT,graphvared,edges,rsrct,rdest,showres)
-    return ava, tottime, avav, tottimev, avavp, tottimevp
+        ava[i], _, _, tottime[i],conten[i]   = basicrta(FT,graphvar,edges,rsrct,rdest,showres)
+        avav[i], _, _, tottimev[i], contenv[i]  = varrta(FT,graphvar,edges,rsrct,rdest,showres)
+        avavp[i], _, _, tottimevp[i], conf, contenvp[i]  = varrtap(FT,graphvared,edges,rsrct,rdest,showres)
+    return ava, tottime, conten, avav, tottimev,contenv, avavp, tottimevp,contenvp
+# %% =============================================================================
 
-ava, tottime, avav, tottimev, avavp, tottimevp = testrout(50,False)
+ava, tottime,conten, avav, tottimev,contenv, avavp, tottimevp,contenvp = testrout(10,False)
 
 avaave = np.mean(ava)
 ttave = np.mean(tottime)
+wavconave = np.mean(conten)
 avaavev = np.mean(avav)
 ttavev = np.mean(tottimev)
+wavconavev = np.mean(contenv)
 avaavevp = np.mean(avavp)
 ttavevp = np.mean(tottimevp)
+wavconavevp = np.mean(contenvp)
 
 print("Normal average availability " + str(avaave) + "%")
 print("Normal average latency " + str('%.2f' % ttave) + "s")
