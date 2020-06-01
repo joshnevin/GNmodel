@@ -22,7 +22,8 @@ from NFmodelGNPy import lin2db
 from NFmodelGNPy import db2lin
 from GNf import GNmain
 import random
-from routingalgorithms import dijkstra
+from dijkstra import dijkstra
+import matplotlib
 
 datagen = False
 repairlossimport = False
@@ -202,12 +203,7 @@ plt.show()
 #np.savetxt('SNRripple10.csv', SNRripple, delimiter=',') 
 #np.savetxt('Pchnum75.csv', Pchripple, delimiter=',') 
 #np.savetxt('SNRnum75.csv', SNRripple, delimiter=',') 
-# %% routing alg bit
-# import trained GP models
-prmn = np.genfromtxt(open("prmn.csv", "r"), delimiter=",", dtype =float)
-sigma = np.genfromtxt(open("sig.csv", "r"), delimiter=",", dtype =float)
-sigrf = np.genfromtxt(open("sigrf.csv", "r"), delimiter=",", dtype =float)
-
+# %% graph definitions
 nodes = ['1','2','3','4','5','6','7','8','9','10','11','12','13','14']
 numnodes = np.size(nodes)
 graph = {'1':{'2':2100,'3':3000,'8':4800},'2':{'1':2100,'3':1200,'4':1500},'3':{'1':3000,'2':1200,'6':3600},    
@@ -221,7 +217,7 @@ graphnorm = {'1':{'2':2100,'3':3000,'8':4800},'2':{'1':2100,'3':1200,'4':1500},'
          '7':{'5':1200,'8':1500,'10':2700}, '8':{'1':4800,'7':1500,'9':1500}, '9':{'8':1500,'10':1500,'12':600,'13':600},
          '10':{'6':2100,'7':2700,'9':1500}, '11':{'4':3900,'12':1200,'13':1500}, '12':{'9':600,'11':1200,'14':600},
          '13':{'9':600,'11':1500,'14':300}, '14':{'6':3600,'12':600,'13':300}
-         }                 
+         }        
 edges = {'1':{'2':0,'3':1,'8':2},'2':{'1':3,'3':4,'4':5},'3':{'1':6,'2':7,'6':8},    
          '4':{'2':9,'5':10,'11':11},'5':{'4':12,'6':13,'7':14}, '6':{'3':15,'5':16,'10':17,'14':18},
          '7':{'5':19,'8':20,'10':21}, '8':{'1':22,'7':23,'9':24}, '9':{'8':25,'10':26,'12':27,'13':28},
@@ -229,6 +225,16 @@ edges = {'1':{'2':0,'3':1,'8':2},'2':{'1':3,'3':4,'4':5},'3':{'1':6,'2':7,'6':8}
          '13':{'9':38,'11':39,'14':40}, '14':{'6':41,'12':42,'13':43}
          }
 numedges = 44
+
+graphNC = {'1':{'2':400,'3':160,'4':160},'2':{'1':400,'4':400,'5':240},'3':{'1':160,'4':160,'6':320},    
+         '4':{'1':160,'2':400,'3':160,'5':320,'7':240},'5':{'2':240,'4':320,'10':480,'11':320}, '6':{'3':320,'7':80,'8':80},
+         '7':{'4':240,'6':80,'9':80}, '8':{'6':80,'9':80}, '9':{'7':80,'8':80,'10':240},
+         '10':{'4':400,'9':240,'11':320,'12':240}, '11':{'5':320,'10':320,'12':240,'14':240}, '12':{'10':240,'11':240,'13':80},
+         '13':{'12':80,'14':160}, '14':{'11':240,'13':160}
+         } 
+
+
+
 # %%
 edgelens = np.empty([numedges,1])
 count = 0
@@ -237,6 +243,7 @@ for key in graph:
         #print(graph.get(key).get(key2))
         edgelens[count] = graph.get(key).get(key2)
         count = count + 1
+
 # %%
 PchdBm = np.linspace(-10,10,numpoints)
 #ripplepertmax = 0.1  # for fixed perturbation between spans 
@@ -297,6 +304,30 @@ if datagen == False:
         pert = np.genfromtxt(open("linkpert"  + str(p) + ".csv", "r"), delimiter=",", dtype =float)
         linkpert.append(pert)
 
+# %% import trained GP models
+prmn = np.genfromtxt(open("prmn.csv", "r"), delimiter=",", dtype =float)
+sigma = np.genfromtxt(open("sig.csv", "r"), delimiter=",", dtype =float)
+sigrf = np.genfromtxt(open("sigrf.csv", "r"), delimiter=",", dtype =float)
+
+# find optimum from the predictive mean
+prmnopt = [np.argmax(prmn[i]) for i in range(np.size(prmn,0))]
+gsige = [sigma[i][prmnopt[i]] for i in range(np.size(prmn,0))]  # use predictive mean to get optimum Pch
+gwte = [edgelens[i]*gsige[i] for i in range(np.size(prmn,0))]
+gsig = [sigma[i][linkPoptind] for i in range(np.size(sigma,0))]
+gwt = [edgelens[i]*gsig[i] for i in range(np.size(sigma,0))]
+graphvar = {'1':{'2':gwt[0][0],'3':gwt[1][0],'8':gwt[2][0]},'2':{'1':gwt[3][0],'3':gwt[4][0],'4':gwt[5][0]},'3':{'1':gwt[6][0],'2':gwt[7][0],'6':gwt[8][0]},    
+             '4':{'2':gwt[9][0],'5':gwt[10][0],'11':gwt[11][0]},'5':{'4':gwt[12][0],'6':gwt[13][0],'7':gwt[14][0]}, '6':{'3':gwt[15][0],'5':gwt[16][0],'10':gwt[17][0],'14':gwt[18][0]},
+             '7':{'5':gwt[19][0],'8':gwt[20][0],'10':gwt[21][0]}, '8':{'1':gwt[22][0],'7':gwt[23][0],'9':gwt[24][0]}, '9':{'8':gwt[25][0],'10':gwt[26][0],'12':gwt[27][0],'13':gwt[28][0]},
+             '10':{'6':gwt[29][0],'7':gwt[30][0],'9':gwt[31][0]}, '11':{'4':gwt[32][0],'12':gwt[33][0],'13':gwt[34][0]}, '12':{'9':gwt[35][0],'11':gwt[36][0],'14':gwt[37][0]},
+             '13':{'9':gwt[38][0],'11':gwt[39][0],'14':gwt[40][0]}, '14':{'6':gwt[41][0],'12':gwt[42][0],'13':gwt[43][0]}
+             }        
+graphvared = {'1':{'2':gwte[0][0],'3':gwte[1][0],'8':gwte[2][0]},'2':{'1':gwte[3][0],'3':gwte[4][0],'4':gwte[5][0]},'3':{'1':gwte[6][0],'2':gwte[7][0],'6':gwte[8][0]},    
+             '4':{'2':gwte[9][0],'5':gwte[10][0],'11':gwte[11][0]},'5':{'4':gwte[12][0],'6':gwte[13][0],'7':gwte[14][0]}, '6':{'3':gwte[15][0],'5':gwte[16][0],'10':gwte[17][0],'14':gwte[18][0]},
+             '7':{'5':gwte[19][0],'8':gwte[20][0],'10':gwte[21][0]}, '8':{'1':gwte[22][0],'7':gwte[23][0],'9':gwte[24][0]}, '9':{'8':gwte[25][0],'10':gwte[26][0],'12':gwte[27][0],'13':gwte[28][0]},
+             '10':{'6':gwte[29][0],'7':gwte[30][0],'9':gwte[31][0]}, '11':{'4':gwte[32][0],'12':gwt[33][0],'13':gwt[34][0]}, '12':{'9':gwte[35][0],'11':gwte[36][0],'14':gwte[37][0]},
+             '13':{'9':gwte[38][0],'11':gwte[39][0],'14':gwte[40][0]}, '14':{'6':gwte[41][0],'12':gwte[42][0],'13':gwte[43][0]}
+             }    
+
 def fmdatagen(edgelen):
     Ls = Lspans
     NchNy = numlam
@@ -333,17 +364,19 @@ for i in range(np.size(edgelens)):
 # %%
 def BERcalc(M, SNR):
         if M == 2: 
-            BER = 0.5*special.erfc((2*SNR)**0.5)
+            BER = 0.5*special.erfc(((2*SNR)/np.log2(2))**0.5)
         elif M == 4: 
-            BER = 0.5*special.erfc(SNR**0.5)
+            BER = 0.5*special.erfc(((2*SNR)/np.log2(4))**0.5)    
         elif M == 16:
-            BER = (3/8)*special.erfc(((2/5)*SNR)**0.5) + (1/4)*special.erfc(((18/5)*SNR)**0.5) - (1/8)*special.erfc((10*SNR)**0.5)
+            BER = (3/8)*special.erfc(((2/5)*(SNR/np.log2(16)))**0.5) + (1/4)*special.erfc(((18/5)*(SNR/np.log2(16)))**0.5) - (1/8)*special.erfc((10*(SNR/np.log2(16)))**0.5)
         elif M == 64:
-            BER = (7/24)*special.erfc(((1/7)*SNR)**0.5) + (1/4)*special.erfc(((9/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) + (1/24)*special.erfc(((81/7)*SNR)**0.5) - (1/24)*special.erfc(((169/7)*SNR)**0.5) 
+            BER = (7/24)*special.erfc(((1/7)*(SNR/np.log2(64)))**0.5) + (1/4)*special.erfc(((9/7)*(SNR/np.log2(64)))**0.5) - (1/24)*special.erfc(((25/7)*(SNR/np.log2(64)))**0.5) + (1/24)*special.erfc(((81/7)*(SNR/np.log2(64)))**0.5) - (1/24)*special.erfc(((169/7)*(SNR/np.log2(64)))**0.5) 
         else:
             print("unrecognised modulation format")
         return BER
- 
+    
+# %%    
+    
 def getlinklen(shpath,graph,edges):
         linklen = np.empty([len(shpath)-1,1])
         link = []
@@ -401,14 +434,14 @@ for i in range(numreq):
     rsrc.append(rsc)
     rdes.append(rds)   
  
-FT2 = 1.06
-FT4 = 3.25
-FT16 = 6.70
-FT64 = 10.65   
+FT2 = 0.24
+FT4 = 3.25 # all correspond to BER of 2e-2
+FT16 = 12.72
+FT64 = 18.43
+       
 # %% fixed margin routing algorithm 
 margin = 6.3
 def fmrta(graph, edges, Rsource, Rdest, showres, margin):
-
     dis = []
     path = []
     for i in range(numnodes):    
@@ -444,8 +477,6 @@ def fmrta(graph, edges, Rsource, Rdest, showres, margin):
     for i in range(numreq):
         # update for online learning 
         #  choose random source and destination nodes 
-
-        #Rsource, Rdest = requestgen(graph)
     
         # find corresponding path index
         def srcdestcheck(path,src,dest):
@@ -494,7 +525,6 @@ def fmrta(graph, edges, Rsource, Rdest, showres, margin):
                 edgesuc = edgesuc + 1
             else:
                 #print("request " + str(i) + " denied -- insufficient reach on edge " + str(randedges[j]))
-                
                 break   
         
         if edgesuc == np.size(linkSNR[randedges],0):
@@ -523,15 +553,9 @@ def fmrta(graph, edges, Rsource, Rdest, showres, margin):
         print("Normal total traversal time = " + str('%.2f' % tottime) + "s")
         print("Normal number of failures = " + str(failures))
     return ava, estlam, reqlams, tottime, conten, ct64, ct16, ct4,ct2, failures, noreach
-
-#test1, test2, test3, _, _,test4, test5, test6, test7 = fmrta(graph, edges, rsrc, rdes, True,margin)
-
-
 # %%
 # generate shortest path between each pair of nodes and store the path and distance
-
 def basicrta(graph, edges, Rsource, Rdest, showres):
-
     dis = []
     path = []
     for i in range(numnodes):    
@@ -565,10 +589,7 @@ def basicrta(graph, edges, Rsource, Rdest, showres):
     randdist = []
     for i in range(numreq):
         # update for online learning 
-        #  choose random source and destination nodes 
-
-        #Rsource, Rdest = requestgen(graph)
-    
+        # choose random source and destination nodes 
         # find corresponding path index
         def srcdestcheck(path,src,dest):
             if path[0] == src and path[-1] == dest:
@@ -589,7 +610,6 @@ def basicrta(graph, edges, Rsource, Rdest, showres):
             conten = conten + 1
             continue
         lamslot = [np.where(estlam[randedges[k]]==0)[0][0] for k in range(np.size(randedges))] # first available wavelength slot for this edge
-        
         # need to check SNR for all the edges in the path
         edgesuc = 0
         edgesuc2 = 0
@@ -617,7 +637,6 @@ def basicrta(graph, edges, Rsource, Rdest, showres):
             else:
                 #print("request " + str(i) + " denied -- insufficient reach on edge " + str(randedges[j]))
                 break   
-        
         if edgesuc == np.size(linkSNR[randedges],0):
             # generate new SNR value here
             for w in range(np.size(randedges)):
@@ -633,7 +652,6 @@ def basicrta(graph, edges, Rsource, Rdest, showres):
             else: 
                 # link not established
                 failures = failures + 1
-         
     ava = (reqlams/numreq)*100 
     tottime = (sum(randdist)*1e3*1.468)/299792458
     if showres:
@@ -643,7 +661,6 @@ def basicrta(graph, edges, Rsource, Rdest, showres):
     return ava, estlam, reqlams, tottime, conten, ct64, ct16, ct4,ct2, failures
 #test1, test2, test3, _, _,test4, test5, test6 = basicrta(graph, edges, rsrc, rdes, True)
 # %%
-
 def varrta(graph,edges,Rsource,Rdest,showres):
     dis = []
     path = []
@@ -720,7 +737,7 @@ def varrta(graph,edges,Rsource,Rdest,showres):
                 ct4 = ct4 + 1
                 edgesuc = edgesuc + 1
             elif linkSNR[randedges][j][linkPoptind] > FT2:
-                FT[j] = FT4
+                FT[j] = FT2
                 ct2 = ct2 + 1
                 edgesuc = edgesuc + 1
             else:
@@ -749,26 +766,7 @@ def varrta(graph,edges,Rsource,Rdest,showres):
         print("Variance-aided availability = " + str(ava) + "%") 
         print("Variance-aided total traversal time = " + str('%.2f' % tottime) + "s")
     return ava, estlam, reqlams, tottime, conten, ct64, ct16, ct4,ct2, failures
-    
 
-# find optimum from the predictive mean
-prmnopt = [np.argmax(prmn[i]) for i in range(np.size(prmn,0))]
-gsige = [sigma[i][prmnopt[i]] for i in range(np.size(prmn,0))]  # use predictive mean to get optimum Pch
-gwte = [edgelens[i]*gsige[i] for i in range(np.size(prmn,0))]
-gsig = [sigma[i][linkPoptind] for i in range(np.size(sigma,0))]
-gwt = [edgelens[i]*gsig[i] for i in range(np.size(sigma,0))]
-graphvar = {'1':{'2':gwt[0][0],'3':gwt[1][0],'8':gwt[2][0]},'2':{'1':gwt[3][0],'3':gwt[4][0],'4':gwt[5][0]},'3':{'1':gwt[6][0],'2':gwt[7][0],'6':gwt[8][0]},    
-             '4':{'2':gwt[9][0],'5':gwt[10][0],'11':gwt[11][0]},'5':{'4':gwt[12][0],'6':gwt[13][0],'7':gwt[14][0]}, '6':{'3':gwt[15][0],'5':gwt[16][0],'10':gwt[17][0],'14':gwt[18][0]},
-             '7':{'5':gwt[19][0],'8':gwt[20][0],'10':gwt[21][0]}, '8':{'1':gwt[22][0],'7':gwt[23][0],'9':gwt[24][0]}, '9':{'8':gwt[25][0],'10':gwt[26][0],'12':gwt[27][0],'13':gwt[28][0]},
-             '10':{'6':gwt[29][0],'7':gwt[30][0],'9':gwt[31][0]}, '11':{'4':gwt[32][0],'12':gwt[33][0],'13':gwt[34][0]}, '12':{'9':gwt[35][0],'11':gwt[36][0],'14':gwt[37][0]},
-             '13':{'9':gwt[38][0],'11':gwt[39][0],'14':gwt[40][0]}, '14':{'6':gwt[41][0],'12':gwt[42][0],'13':gwt[43][0]}
-             }        
-graphvared = {'1':{'2':gwte[0][0],'3':gwte[1][0],'8':gwte[2][0]},'2':{'1':gwte[3][0],'3':gwte[4][0],'4':gwte[5][0]},'3':{'1':gwte[6][0],'2':gwte[7][0],'6':gwte[8][0]},    
-             '4':{'2':gwte[9][0],'5':gwte[10][0],'11':gwte[11][0]},'5':{'4':gwte[12][0],'6':gwte[13][0],'7':gwte[14][0]}, '6':{'3':gwte[15][0],'5':gwte[16][0],'10':gwte[17][0],'14':gwte[18][0]},
-             '7':{'5':gwte[19][0],'8':gwte[20][0],'10':gwte[21][0]}, '8':{'1':gwte[22][0],'7':gwte[23][0],'9':gwte[24][0]}, '9':{'8':gwte[25][0],'10':gwte[26][0],'12':gwte[27][0],'13':gwte[28][0]},
-             '10':{'6':gwte[29][0],'7':gwte[30][0],'9':gwte[31][0]}, '11':{'4':gwte[32][0],'12':gwt[33][0],'13':gwt[34][0]}, '12':{'9':gwte[35][0],'11':gwte[36][0],'14':gwte[37][0]},
-             '13':{'9':gwte[38][0],'11':gwte[39][0],'14':gwte[40][0]}, '14':{'6':gwte[41][0],'12':gwte[42][0],'13':gwte[43][0]}
-             }    
 
 #avav, estlamv, reqlamsv, tottimev  = varrta(FT,graphvar,edges,rsrc,rdes,False)
 
@@ -852,7 +850,7 @@ def varrtap(graph,edges,Rsource,Rdest,showres,numsig):
                 ct4 = ct4 + 1
                 edgesuc = edgesuc + 1
             elif prmn[randedges][j][prmnopt[randedges[j]]] > FT2 and (prmn[randedges][j][prmnopt[randedges[j]]] - FT2)/gsige[randedges[j]] > numsig:
-                conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT4)/gsige[randedges[j]])
+                conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT2)/gsige[randedges[j]])
                 FT[j] = FT2
                 ct2 = ct2 + 1
                 edgesuc = edgesuc + 1
@@ -885,9 +883,8 @@ def varrtap(graph,edges,Rsource,Rdest,showres,numsig):
 
 # %%
 # ========== this loop resets the network loading after numreqs, numtests times  ===========
-def testrout(numtests,showres,numsig):
+def testrout(numtests,showres,numsig, numreq):
 
-    
     avaf = np.empty([numtests,1])
     tottimef = np.empty([numtests,1])
     contenf = np.empty([numtests,1])
@@ -922,7 +919,8 @@ def testrout(numtests,showres,numsig):
     ct2vp = np.empty([numtests,1])
     failvp = np.empty([numtests,1])
 
-    numreq = 100 
+
+    
     for i in range(numtests):
         # pre-determine 100 random requests 
         
@@ -936,98 +934,169 @@ def testrout(numtests,showres,numsig):
         avav[i], _, _, tottimev[i], contenv[i],ct64v[i],ct16v[i], ct4v[i],ct2v[i], failv[i]   = varrta(graphvar,edges,rsrct,rdest,showres)
         avavp[i], _, _, tottimevp[i], contenvp[i], conf ,ct64vp[i],ct16vp[i], ct4vp[i],ct2vp[i], failvp[i]   = varrtap(graphvared,edges,rsrct,rdest,showres,numsig)
         avaf[i], _, _, tottimef[i], contenf[i],ct64f[i],ct16f[i], ct4f[i],ct2f[i], failf[i], noreachf[i]   = fmrta(graph,edges,rsrct,rdest,showres,margin)
-    return ava, tottime, conten,ct64, ct16, ct4,ct2, fail, avav, tottimev,contenv,ct64v, ct16v, ct4v, ct2v, failv, avavp, tottimevp,contenvp, conf, ct64vp, ct16vp, ct4vp,ct2vp, failvp,avaf, tottimef, contenf,ct64f, ct16f, ct4f,ct2f,failf, noreachf
+    
+    avaave = np.mean(ava)
+    ttave = np.mean(tottime)
+    wavconave = np.mean(conten/numreq)*100 # express as a %
+    failave = np.mean(fail/numreq)*100 # express as a %
+    avaavev = np.mean(avav)
+    ttavev = np.mean(tottimev)
+    wavconavev = np.mean(contenv/numreq)*100 # express as a %
+    failavev = np.mean(failv/numreq)*100 # express as a %
+    avaavevp = np.mean(avavp)
+    ttavevp = np.mean(tottimevp)
+    wavconavevp = np.mean(contenvp/numreq)*100 # express as a %
+    failavevp = np.mean(failvp/numreq)*100 # express as a %
+    avaavef = np.mean(avaf)
+    ttavef = np.mean(tottimef)
+    wavconavef = np.mean(contenf/numreq)*100 # express as a %
+    failavef = np.mean(failf/numreq)*100 # express as a %
+    norchavef = np.mean(noreachf/numreq)*100
+    
+    ct64ave = np.mean(ct64)
+    ct16ave = np.mean(ct16)
+    ct4ave = np.mean(ct4)
+    ct2ave = np.mean(ct2)
+    ct64avev = np.mean(ct64v)
+    ct16avev = np.mean(ct16v)
+    ct4avev = np.mean(ct4v)
+    ct2avev = np.mean(ct2v)
+    ct64avevp = np.mean(ct64vp)
+    ct16avevp = np.mean(ct16vp)
+    ct4avevp = np.mean(ct4vp)
+    ct2avevp = np.mean(ct2vp)
+    ct64avef = np.mean(ct64f)
+    ct16avef = np.mean(ct16f)
+    ct4avef = np.mean(ct4f)
+    ct2avef = np.mean(ct2f)
+    
+    thrpt = (ct64ave*6 + ct16ave*4 + ct4ave*2 + ct2ave)/(ct64ave + ct16ave + ct4ave + ct2ave)
+    thrptv = (ct64avev*6 + ct16avev*4 + ct4avev*2 + ct2avev)/(ct64avev + ct16avev + ct4avev + ct2avev)
+    thrptvp = (ct64avevp*6 + ct16avevp*4 + ct4avevp*2 + ct2avevp)/(ct64avevp + ct16avevp + ct4avevp + ct2avevp)
+    thrptf = (ct64avef*6 + ct16avef*4 + ct4avef*2 + ct2avef)/(ct64avef + ct16avef + ct4avef + + ct2avef)
+        
+    return avaave, wavconave, failave ,ttave, thrpt,avaavev, wavconavev, failavev ,ttavev, thrptv, avaavevp, wavconavevp, failavevp ,ttavevp, thrptvp, avaavef, wavconavef, failavef ,ttavef, thrptf, norchavef
 
-numsig = 4
 
-ava, tottime, conten,ct64, ct16, ct4,ct2,fail, avav, tottimev,contenv,ct64v, ct16v, ct4v,ct2v,failv, avavp, tottimevp,contenvp, VPconf, ct64vp, ct16vp, ct4vp,ct2vp, failvp,avaf, tottimef, contenf,ct64f, ct16f, ct4f,ct2f,failf, noreachf = testrout(10,False,numsig)
-avaave = np.mean(ava)
-ttave = np.mean(tottime)
-wavconave = np.mean(conten/numreq)*100 # express as a %
-failave = np.mean(fail/numreq)*100 # express as a %
-avaavev = np.mean(avav)
-ttavev = np.mean(tottimev)
-wavconavev = np.mean(contenv/numreq)*100 # express as a %
-failavev = np.mean(failv/numreq)*100 # express as a %
-avaavevp = np.mean(avavp)
-ttavevp = np.mean(tottimevp)
-wavconavevp = np.mean(contenvp/numreq)*100 # express as a %
-failavevp = np.mean(failvp/numreq)*100 # express as a %
-avaavef = np.mean(avaf)
-ttavef = np.mean(tottimef)
-wavconavef = np.mean(contenf/numreq)*100 # express as a %
-failavef = np.mean(failf/numreq)*100 # express as a %
-norchavef = np.mean(noreachf/numreq)*100
+#numreq = np.linspace(50,150,21,dtype=int)
+#numsig = 5
+#nrs = np.size(numreq)
+numreq = 60
+numsig = np.linspace(2,6,21)
+nrs = np.size(numsig)
+avaave = np.empty([nrs,1])
+wavconave = np.empty([nrs,1])
+failave = np.empty([nrs,1])
+ttave = np.empty([nrs,1])
+thrpt = np.empty([nrs,1]) 
+avaavev = np.empty([nrs,1])
+wavconavev = np.empty([nrs,1])
+failavev = np.empty([nrs,1])
+ttavev = np.empty([nrs,1])
+thrptv = np.empty([nrs,1]) 
+avaavevp = np.empty([nrs,1])
+wavconavevp = np.empty([nrs,1])
+failavevp = np.empty([nrs,1])
+ttavevp = np.empty([nrs,1])
+thrptvp = np.empty([nrs,1]) 
+avaavef = np.empty([nrs,1])
+wavconavef = np.empty([nrs,1])
+failavef = np.empty([nrs,1])
+ttavef = np.empty([nrs,1])
+thrptf = np.empty([nrs,1])
+norchavef = np.empty([nrs,1])
 
+for i in range(nrs):
+    #avaave[i], wavconave[i], failave[i] ,ttave[i], thrpt[i], avaavev[i], wavconavev[i], failavev[i] ,ttavev[i], thrptv[i], avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i] = testrout(20,False,numsig,numreq[i])
+    avaave[i], wavconave[i], failave[i] ,ttave[i], thrpt[i], avaavev[i], wavconavev[i], failavev[i] ,ttavev[i], thrptv[i], avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i] = testrout(20,False,numsig[i],numreq)
 
-ct64ave = np.mean(ct64)
-ct16ave = np.mean(ct16)
-ct4ave = np.mean(ct4)
-ct2ave = np.mean(ct2)
-ct64avev = np.mean(ct64v)
-ct16avev = np.mean(ct16v)
-ct4avev = np.mean(ct4v)
-ct2avev = np.mean(ct2v)
-ct64avevp = np.mean(ct64vp)
-ct16avevp = np.mean(ct16vp)
-ct4avevp = np.mean(ct4vp)
-ct2avevp = np.mean(ct2vp)
-ct64avef = np.mean(ct64f)
-ct16avef = np.mean(ct16f)
-ct4avef = np.mean(ct4f)
-ct2avef = np.mean(ct2f)
-
-thrpt = (ct64ave*6 + ct16ave*4 + ct4ave*2 + ct2ave)/(ct64ave + ct16ave + ct4ave + ct2ave)
-thrptv = (ct64avev*6 + ct16avev*4 + ct4avev*2 + ct2avev)/(ct64avev + ct16avev + ct4avev + ct2avev)
-thrptvp = (ct64avevp*6 + ct16avevp*4 + ct4avevp*2 + ct2avevp)/(ct64avevp + ct16avevp + ct4avevp + ct2avevp)
-thrptf = (ct64avef*6 + ct16avef*4 + ct4avef*2 + ct2avef)/(ct64avef + ct16avef + ct4avef + + ct2avef)
-
-print("----------------------------------------------------------")
-print("Fixed margin average availability " + str(avaavef) + "%")
-print("Fixed margin wavelength contention est "  + str('%.2f' % wavconavef) + "%")
-print("Fixed margin failure post-reach est "  + str('%.2f' % failavef)+ "%")
-print("Fixed margin reach assignment failure "  + str('%.2f' % norchavef)+ "%")
-print("Fixed margin average latency " + str('%.4f' % ttavef) + "s")
-print("Fixed margin throughput est "  + str('%.4f' % thrptf) + " bits/sym")
-print("----------------------------------------------------------")
-print("Database average availability " + str(avaave) + "%")
-print("Database wavelength contention est "  + str('%.2f' % wavconave) + "%")
-print("Database failure post-reach est "  + str('%.2f' % failave)+ "%")
-print("Database average latency " + str('%.4f' % ttave) + "s")
-print("Database throughput est "  + str('%.4f' % thrpt) + " bits/sym")
-print("----------------------------------------------------------")
-print("Variance-aided average availability " + str(avaavev) + "%")
-print("Variance-aided wavelength contention est "  + str('%.2f' % wavconavev) + "%")
-print("Variance-aided failure post-reach est "  + str('%.2f' % failavev) + "%")
-print("Variance-aided average latency " + str('%.4f' % ttavev) + "s")
-print("Variance-aided throughput est " + str('%.4f' % thrptv)+ " bits/sym")
-print("----------------------------------------------------------")
-print("Variance-aided power-adjusted average availability " + str(avaavevp) + "%")
-print("Variance-aided power-adjusted wavelength contention est "  + str('%.2f' % wavconavevp) + "%")
-print("Variance-aided power-adjusted failure post-reach est "  + str('%.2f' % failavevp) + "%")
-print("Variance-aided power-adjusted average latency " + str('%.4f' % ttavevp) + "s")
-print("Variance-aided power-adjusted throughput est " + str('%.2f' % thrptvp)+ " bits/sym")
-print("----------------------------------------------------------")
 # %%
-#cnts, bns = np.histogram(VPconf, 20)
-def confprob(sig):
-    return special.erf(sig/(2**0.5))
-_ = plt.hist(VPconf, bins='auto') # auto uses the maximum of the FD and Sturges methods for bin number determination
-plt.ylabel('frequency')
-plt.xlabel('confidence level ($\sigma$)')
-plt.xticks(np.arange(0, 31, step=3))
-plt.savefig('confidencehist.png', dpi=200)
-plt.show()
 
-VPconfp = [round(confprob(i)*100,7) for i in VPconf]
+font = { 'family' : 'sans-serif',
+        'weight' : 'normal',
+        'size'   : 14}
 
-testcnts, testbns = np.histogram(VPconfp, bins='auto')
-_ = plt.hist(VPconfp, bins='auto') # auto uses the maximum of the FD and Sturges methods for bin number determination
-plt.ylabel('frequency')
-plt.xlabel('confidence level (%)')
-#plt.xticks(np.arange(88, 101, step=1))
-plt.savefig('confidencehistprob.png', dpi=200)
-plt.show()
+matplotlib.rc('font', **font)
+
+#plt.plot(numreq, avaave, label="D")
+#plt.plot(numreq, avaavev, label="VA")
+#plt.plot(numreq, avaavevp, label="VAPA")
+#plt.plot(numreq, avaavef, label="FM")
+plt.plot(numsig, avaavevp, label="VAPA")
+plt.plot(numsig, avaavef, label="FM")
+plt.legend()
+#plt.xlabel("No. of requests")
+plt.xlabel("$\sigma$")
+plt.ylabel("Availability (%)")
+plt.savefig('Avavsnreq.pdf', dpi=200,bbox_inches='tight')
+plt.show() 
+
+#plt.plot(numreq, wavconave, label="D")
+#plt.plot(numreq, wavconavev, label="VA")
+#plt.plot(numreq, wavconavevp, label="VAPA")
+#plt.plot(numreq, wavconavef, label="FM")
+plt.plot(numsig, wavconavevp, label="VAPA")
+plt.plot(numsig, wavconavef, label="FM")
+plt.legend()
+#plt.xlabel("No. of requests")
+plt.xlabel("$\sigma$")
+plt.ylabel("Wavelength contention (%)")
+plt.savefig('Wlcvsnreq.pdf', dpi=200,bbox_inches='tight')
+plt.show() 
+
+#plt.plot(numreq, failave, label="D")
+#plt.plot(numreq, failavev, label="VA")
+#plt.plot(numreq, failavevp, label="VAPA")
+#plt.plot(numreq, failavef, label="FM")
+plt.plot(numsig, failavevp, label="VAPA")
+plt.plot(numsig, failavef, label="FM")
+plt.legend()
+#plt.xlabel("No. of requests")
+plt.xlabel("$\sigma$")
+plt.ylabel("Failure post-reach est. (%)")
+plt.savefig('failvssig.pdf', dpi=200,bbox_inches='tight')
+plt.show() 
+
+#plt.plot(numreq, thrpt, label="D")
+#plt.plot(numreq, thrptv, label="VA")
+#plt.plot(numreq, thrptvp, label="VAPA")
+#plt.plot(numreq, thrptf, label="FM")
+plt.plot(numsig, thrptvp, label="VAPA")
+plt.plot(numsig, thrptf, label="FM")
+plt.legend()
+#plt.xlabel("No. of requests")
+plt.xlabel("$\sigma$")
+plt.ylabel("Throughput (bits/sym)")
+plt.savefig('Thrptvsnreq.pdf', dpi=200,bbox_inches='tight')
+plt.show() 
+
+# =============================================================================
+# print("----------------------------------------------------------")
+# print("Fixed margin average availability " + str(avaavef) + "%")
+# print("Fixed margin wavelength contention est "  + str('%.2f' % wavconavef) + "%")
+# print("Fixed margin failure post-reach est "  + str('%.2f' % failavef)+ "%")
+# print("Fixed margin reach assignment failure "  + str('%.2f' % norchavef)+ "%")
+# print("Fixed margin average latency " + str('%.4f' % ttavef) + "s")
+# print("Fixed margin throughput est "  + str('%.4f' % thrptf) + " bits/sym")
+# print("----------------------------------------------------------")
+# print("Database average availability " + str(avaave) + "%")
+# print("Database wavelength contention est "  + str('%.2f' % wavconave) + "%")
+# print("Database failure post-reach est "  + str('%.2f' % failave)+ "%")
+# print("Database average latency " + str('%.4f' % ttave) + "s")
+# print("Database throughput est "  + str('%.4f' % thrpt) + " bits/sym")
+# print("----------------------------------------------------------")
+# print("Variance-aided average availability " + str(avaavev) + "%")
+# print("Variance-aided wavelength contention est "  + str('%.2f' % wavconavev) + "%")
+# print("Variance-aided failure post-reach est "  + str('%.2f' % failavev) + "%")
+# print("Variance-aided average latency " + str('%.4f' % ttavev) + "s")
+# print("Variance-aided throughput est " + str('%.4f' % thrptv)+ " bits/sym")
+# print("----------------------------------------------------------")
+# print("Variance-aided power-adjusted average availability " + str(avaavevp) + "%")
+# print("Variance-aided power-adjusted wavelength contention est "  + str('%.2f' % wavconavevp) + "%")
+# print("Variance-aided power-adjusted failure post-reach est "  + str('%.2f' % failavevp) + "%")
+# print("Variance-aided power-adjusted average latency " + str('%.4f' % ttavevp) + "s")
+# print("Variance-aided power-adjusted throughput est " + str('%.2f' % thrptvp)+ " bits/sym")
+# print("----------------------------------------------------------")
 # =============================================================================
 
 # %% ================================ Mutual information estimation ===========================================
