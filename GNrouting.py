@@ -273,7 +273,7 @@ edgelensA = getedgelen(graphA, numedgesA)
 PchdBm = np.linspace(-10,10,numpoints)
 #ripplepertmax = 0.1  # for fixed perturbation between spans 
 #ripplepertmin = -0.1
-numlam = 20 # initial expected number of wavelengths 
+numlam = 80 # initial expected number of wavelengths 
 if datagen:
     def routingdatagen2(edgelen,Lspans):
         lam = 1550
@@ -306,20 +306,27 @@ if datagen:
         linkpert = []
         for i in range(numedges):
             linkSNR[i], linkPopt, linkPoptind, linkpertP = routingdatagen2(edgelens[i],Lspans)
-            linkpert.append(linkpertP)
-        
+            linkpert.append(linkpertP)       
         linkPch = np.transpose(np.linspace(linkPopt-1.5, linkPopt+1.5, numpoints).reshape(100,1))
-        #linkPchtest = np.linspace(linkPopt-1.5, linkPopt+1.5, numpoints)
-        
-        np.savetxt('linkSNRD.csv', linkSNR, delimiter=',') 
-        np.savetxt('linkPchD.csv', linkPch, delimiter=',') 
-        linkPopt = linkPopt.reshape(1,1)
-        np.savetxt('linkPoptD.csv', linkPopt, delimiter=',') 
-        for p in range(numedges):
-            np.savetxt('linkpertD' + str(p) + '.csv', linkpert[p], delimiter=',') 
+        TRxSNR = 26 # add TRx noise of 26dB B2B 
+        linkSNR = lin2db( 1/(  1/(db2lin(linkSNR)) + 1/(db2lin(TRxSNR))  ))
+        if graphA == graphN:
+            np.savetxt('linkSNR.csv', linkSNR, delimiter=',') 
+            np.savetxt('linkPch.csv', linkPch, delimiter=',') 
+            linkPopt = linkPopt.reshape(1,1)
+            np.savetxt('linkPopt.csv', linkPopt, delimiter=',') 
+            for p in range(numedges):
+                np.savetxt('linkpert' + str(p) + '.csv', linkpert[p], delimiter=',') 
+        elif graphA == graphD:
+            np.savetxt('linkSNRD.csv', linkSNR, delimiter=',') 
+            np.savetxt('linkPchD.csv', linkPch, delimiter=',') 
+            linkPopt = linkPopt.reshape(1,1)
+            np.savetxt('linkPoptD.csv', linkPopt, delimiter=',') 
+            for p in range(numedges):
+                np.savetxt('linkpertD' + str(p) + '.csv', linkpert[p], delimiter=',')             
         return linkSNR, linkPch, linkPopt, linkpert, linkPoptind
     
-    linkSNRD,linkPchD,linkPoptD, linkpertD, linkPoptindD = savedat(edgelensA, numedgesA,LspansA)
+    linkSNR,linkPch,linkPopt, linkpert, linkPoptind = savedat(edgelensA, numedgesA,LspansA)
 if datagen == False:
     def importdat(Lspans, numedges):
         Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] # }
@@ -500,6 +507,7 @@ FT2 = 0.24
 FT4 = 3.25 # all correspond to BER of 2e-2
 FT16 = 12.72
 FT64 = 18.43
+FT128 = 22.35
        
 # %% fixed margin routing algorithm 
 # margin = 6.3 # BoL
@@ -547,6 +555,7 @@ def fmrta(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens,
     conten = 0
     failures = 0 # post-reach determination failures
     noreach = 0 # cases in which algorithm unable to assign any modulation 
+    ct128 = 0
     ct64 = 0
     ct16 = 0
     ct4 = 0
@@ -586,7 +595,11 @@ def fmrta(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens,
         #print(np.size(randedges))
         for j in range(np.size(linkSNR[randedges],0)):
             
-            if fmSNR[randedges][j] - margin > FT64:
+            if fmSNR[randedges][j] - margin > FT128:
+                FT[j] = FT128
+                ct128 = ct128 + 1
+                edgesuc = edgesuc + 1
+            elif fmSNR[randedges][j] - margin > FT64:
                 FT[j] = FT64
                 ct64 = ct64 + 1
                 edgesuc = edgesuc + 1
@@ -631,7 +644,7 @@ def fmrta(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens,
         print("Normal availability = " + str(ava) + "%") 
         print("Normal total traversal time = " + str('%.2f' % tottime) + "s")
         print("Normal number of failures = " + str(failures))
-    return ava, estlam, reqlams, tottime, conten, ct64, ct16, ct4,ct2, failures, noreach
+    return ava, estlam, reqlams, tottime, conten,ct128, ct64, ct16, ct4,ct2, failures, noreach
 # %%
 # generate shortest path between each pair of nodes and store the path and distance
 def basicrta(graph, edges, Rsource, Rdest, showres, nodes,numedges,edgelens,Lspans):
@@ -676,6 +689,7 @@ def basicrta(graph, edges, Rsource, Rdest, showres, nodes,numedges,edgelens,Lspa
     reqlams = 0
     conten = 0
     failures = 0
+    ct128 = 0
     ct64 = 0
     ct16 = 0
     ct4 = 0
@@ -713,7 +727,11 @@ def basicrta(graph, edges, Rsource, Rdest, showres, nodes,numedges,edgelens,Lspa
         #print(np.size(randedges))
         for j in range(np.size(linkSNR[randedges],0)):
             
-            if linkSNR[randedges][j][linkPoptind] > FT64:
+            if linkSNR[randedges][j][linkPoptind] > FT128:
+                FT[j] = FT128
+                ct128 = ct128 + 1
+                edgesuc = edgesuc + 1
+            elif linkSNR[randedges][j][linkPoptind] > FT64:
                 FT[j] = FT64
                 ct64 = ct64 + 1
                 edgesuc = edgesuc + 1
@@ -753,7 +771,7 @@ def basicrta(graph, edges, Rsource, Rdest, showres, nodes,numedges,edgelens,Lspa
         print("Normal availability = " + str(ava) + "%") 
         print("Normal total traversal time = " + str('%.2f' % tottime) + "s")
         print("Normal number of failures = " + str(failures))
-    return ava, estlam, reqlams, tottime, conten, ct64, ct16, ct4,ct2, failures
+    return ava, estlam, reqlams, tottime, conten, ct128, ct64, ct16, ct4,ct2, failures
 #test1, test2, test3, _, _,test4, test5, test6 = basicrta(graph, edges, rsrc, rdes, True)
 # %%
 def varrta(graph,edges,Rsource,Rdest,showres,nodes,numedges,edgelens,Lspans):
@@ -798,6 +816,7 @@ def varrta(graph,edges,Rsource,Rdest,showres,nodes,numedges,edgelens,Lspans):
     reqlams = 0
     conten = 0
     failures = 0
+    ct128 = 0
     ct64 = 0
     ct16 = 0
     ct4 = 0
@@ -835,7 +854,11 @@ def varrta(graph,edges,Rsource,Rdest,showres,nodes,numedges,edgelens,Lspans):
         edgesuc2 = 0
         FT = np.zeros(np.size(linkSNR[randedges],0))
         for j in range(np.size(linkSNR[randedges],0)):
-            if linkSNR[randedges][j][linkPoptind] > FT64:
+            if linkSNR[randedges][j][linkPoptind] > FT128:
+                FT[j] = FT128
+                ct128 = ct128 + 1
+                edgesuc = edgesuc + 1
+            elif linkSNR[randedges][j][linkPoptind] > FT64:
                 FT[j] = FT64
                 ct64 = ct64 + 1
                 edgesuc = edgesuc + 1
@@ -876,7 +899,7 @@ def varrta(graph,edges,Rsource,Rdest,showres,nodes,numedges,edgelens,Lspans):
     if showres:
         print("Variance-aided availability = " + str(ava) + "%") 
         print("Variance-aided total traversal time = " + str('%.2f' % tottime) + "s")
-    return ava, estlam, reqlams, tottime, conten, ct64, ct16, ct4,ct2, failures
+    return ava, estlam, reqlams, tottime, conten, ct128, ct64, ct16, ct4,ct2, failures
 
 
 #avav, estlamv, reqlamsv, tottimev  = varrta(FT,graphvar,edges,rsrc,rdes,False)
@@ -924,6 +947,7 @@ def varrtap(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lsp
     reqlams = 0
     conten = 0
     failures = 0
+    ct128 = 0
     ct64 = 0
     ct16 =0 
     ct4 = 0
@@ -961,7 +985,12 @@ def varrtap(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lsp
         for j in range(np.size(linkSNR[randedges],0)): # for each edge in the path
             #if linkSNR[randedges][j][prmnopt[randedges[j]]] > FT:
         
-            if prmn[randedges][j][prmnopt[randedges[j]]] > FT64 and (prmn[randedges][j][prmnopt[randedges[j]]] - FT64)/gsige[randedges[j]] > numsig:
+            if prmn[randedges][j][prmnopt[randedges[j]]] > FT128 and (prmn[randedges][j][prmnopt[randedges[j]]] - FT128)/gsige[randedges[j]] > numsig:
+                conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT128)/gsige[randedges[j]])
+                FT[j] = FT128
+                ct128 = ct128 + 1
+                edgesuc = edgesuc + 1
+            elif prmn[randedges][j][prmnopt[randedges[j]]] > FT64 and (prmn[randedges][j][prmnopt[randedges[j]]] - FT64)/gsige[randedges[j]] > numsig:
                 conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT64)/gsige[randedges[j]])
                 FT[j] = FT64
                 ct64 = ct64 + 1
@@ -1006,7 +1035,7 @@ def varrtap(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lsp
     if showres:
         print("Variance-aided availability = " + str(ava) + "%") 
         print("Variance-aided total traversal time = " + str('%.2f' % tottime) + "s")
-    return ava, estlam, reqlams, tottime,conten, conf, ct64, ct16, ct4,ct2, failures
+    return ava, estlam, reqlams, tottime,conten, conf, ct128, ct64, ct16, ct4,ct2, failures
 
 # %%
 # ========== this loop resets the network loading after numreqs, numtests times  ===========
@@ -1015,6 +1044,7 @@ def testrout(graph, graphvar, edges, numtests,showres,numsig, numreq):
     avaf = np.empty([numtests,1])
     tottimef = np.empty([numtests,1])
     contenf = np.empty([numtests,1])
+    ct128f = np.empty([numtests,1])
     ct64f = np.empty([numtests,1])
     ct16f = np.empty([numtests,1])
     ct4f = np.empty([numtests,1])
@@ -1024,6 +1054,7 @@ def testrout(graph, graphvar, edges, numtests,showres,numsig, numreq):
     ava = np.empty([numtests,1])
     tottime = np.empty([numtests,1])
     conten = np.empty([numtests,1])
+    ct128 = np.empty([numtests,1])
     ct64 = np.empty([numtests,1])
     ct16 = np.empty([numtests,1])
     ct4 = np.empty([numtests,1])
@@ -1032,6 +1063,7 @@ def testrout(graph, graphvar, edges, numtests,showres,numsig, numreq):
     avav = np.empty([numtests,1])
     tottimev = np.empty([numtests,1])
     contenv = np.empty([numtests,1])
+    ct128v = np.empty([numtests,1])
     ct64v = np.empty([numtests,1])
     ct16v = np.empty([numtests,1])
     ct4v = np.empty([numtests,1])
@@ -1040,6 +1072,7 @@ def testrout(graph, graphvar, edges, numtests,showres,numsig, numreq):
     avavp = np.empty([numtests,1])
     tottimevp = np.empty([numtests,1])
     contenvp = np.empty([numtests,1])
+    ct128vp = np.empty([numtests,1])
     ct64vp = np.empty([numtests,1])
     ct16vp = np.empty([numtests,1])
     ct4vp = np.empty([numtests,1])
@@ -1057,10 +1090,10 @@ def testrout(graph, graphvar, edges, numtests,showres,numsig, numreq):
             rsct, rdst = requestgen(graph)
             rsrct.append(rsct)
             rdest.append(rdst)
-        ava[i], _, _, tottime[i],conten[i],ct64[i],ct16[i], ct4[i],ct2[i], fail[i]  = basicrta(graph,edges,rsrct,rdest,showres,nodesA,numedgesA,edgelensA,LspansA)
-        avav[i], _, _, tottimev[i], contenv[i],ct64v[i],ct16v[i], ct4v[i],ct2v[i], failv[i]   = varrta(graphvar,edges,rsrct,rdest,showres,nodesA,numedgesA,edgelensA,LspansA)
-        avavp[i], _, _, tottimevp[i], contenvp[i], conf ,ct64vp[i],ct16vp[i], ct4vp[i],ct2vp[i], failvp[i]   = varrtap(graphvared,edges,rsrct,rdest,showres,numsig,nodesA,numedgesA,edgelensA,LspansA)
-        avaf[i], _, _, tottimef[i], contenf[i],ct64f[i],ct16f[i], ct4f[i],ct2f[i], failf[i], noreachf[i]   = fmrta(graph,edges,rsrct,rdest,showres,margin,nodesD,numedgesA,edgelensA,fmSNR,LspansA)
+        #ava[i], _, _, tottime[i],conten[i],ct128[i],ct64[i],ct16[i], ct4[i],ct2[i], fail[i]  = basicrta(graph,edges,rsrct,rdest,showres,nodesA,numedgesA,edgelensA,LspansA)
+        #avav[i], _, _, tottimev[i], contenv[i],ct128v[i],ct64v[i],ct16v[i], ct4v[i],ct2v[i], failv[i]   = varrta(graphvar,edges,rsrct,rdest,showres,nodesA,numedgesA,edgelensA,LspansA)
+        avavp[i], _, _, tottimevp[i], contenvp[i], conf , ct128vp[i], ct64vp[i],ct16vp[i], ct4vp[i],ct2vp[i], failvp[i]   = varrtap(graphvared,edges,rsrct,rdest,showres,numsig,nodesA,numedgesA,edgelensA,LspansA)
+        avaf[i], _, _, tottimef[i], contenf[i], ct128f[i], ct64f[i],ct16f[i], ct4f[i],ct2f[i], failf[i], noreachf[i]   = fmrta(graph,edges,rsrct,rdest,showres,margin,nodesD,numedgesA,edgelensA,fmSNR,LspansA)
     
     avaave = np.mean(ava)
     ttave = np.mean(tottime)
@@ -1080,33 +1113,37 @@ def testrout(graph, graphvar, edges, numtests,showres,numsig, numreq):
     failavef = np.mean(failf/numreq)*100 # express as a %
     norchavef = np.mean(noreachf/numreq)*100
     
+    ct128ave = np.mean(ct128)
     ct64ave = np.mean(ct64)
     ct16ave = np.mean(ct16)
     ct4ave = np.mean(ct4)
     ct2ave = np.mean(ct2)
+    ct128avev = np.mean(ct128v)
     ct64avev = np.mean(ct64v)
     ct16avev = np.mean(ct16v)
     ct4avev = np.mean(ct4v)
     ct2avev = np.mean(ct2v)
+    ct128avevp = np.mean(ct128vp)
     ct64avevp = np.mean(ct64vp)
     ct16avevp = np.mean(ct16vp)
     ct4avevp = np.mean(ct4vp)
     ct2avevp = np.mean(ct2vp)
+    ct128avef = np.mean(ct128f)
     ct64avef = np.mean(ct64f)
     ct16avef = np.mean(ct16f)
     ct4avef = np.mean(ct4f)
     ct2avef = np.mean(ct2f)
     
-    thrpt = 2*(ct64ave*6 + ct16ave*4 + ct4ave*2 + ct2ave)/(ct64ave + ct16ave + ct4ave + ct2ave)
-    thrptv = 2*(ct64avev*6 + ct16avev*4 + ct4avev*2 + ct2avev)/(ct64avev + ct16avev + ct4avev + ct2avev)
-    thrptvp = 2*(ct64avevp*6 + ct16avevp*4 + ct4avevp*2 + ct2avevp)/(ct64avevp + ct16avevp + ct4avevp + ct2avevp)
-    thrptf = 2*(ct64avef*6 + ct16avef*4 + ct4avef*2 + ct2avef)/(ct64avef + ct16avef + ct4avef + + ct2avef)
+    thrpt = 2*(ct128ave*7 + ct64ave*6 + ct16ave*4 + ct4ave*2 + ct2ave)/(ct128ave + ct64ave + ct16ave + ct4ave + ct2ave)
+    thrptv = 2*(ct128avev*7 + ct64avev*6 + ct16avev*4 + ct4avev*2 + ct2avev)/(ct128avev + ct64avev + ct16avev + ct4avev + ct2avev)
+    thrptvp = 2*(ct128avevp*7 + ct64avevp*6 + ct16avevp*4 + ct4avevp*2 + ct2avevp)/(ct128avevp + ct64avevp + ct16avevp + ct4avevp + ct2avevp)
+    thrptf = 2*(ct128avef*7 + ct64avef*6 + ct16avef*4 + ct4avef*2 + ct2avef)/(ct128avef + ct64avef + ct16avef + ct4avef + + ct2avef)
         
     return avaave, wavconave, failave ,ttave, thrpt,avaavev, wavconavev, failavev ,ttavev, thrptv, avaavevp, wavconavevp, failavevp ,ttavevp, thrptvp, avaavef, wavconavef, failavef ,ttavef, thrptf, norchavef
 
-reqvar = False
+reqvar = True
 if reqvar:
-    numreq = np.linspace(50,150,21,dtype=int)
+    numreq = np.linspace(150,500,21,dtype=int)
     numsig = 4.5
     nrs = np.size(numreq)
     avaave = np.empty([nrs,1])
@@ -1130,12 +1167,14 @@ if reqvar:
     ttavef = np.empty([nrs,1])
     thrptf = np.empty([nrs,1])
     norchavef = np.empty([nrs,1])
-    
+    start_time = time.time()
     for i in range(nrs):     
         avaave[i], wavconave[i], failave[i] ,ttave[i], thrpt[i], avaavev[i], wavconavev[i], failavev[i] ,ttavev[i], thrptv[i], avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i] = testrout(graphA, graphvar, edgesA, 20,False,numsig,numreq[i])
+    end_time = time.time()
+    duration = time.time() - start_time
 else:
-    numreq = 60
-    numsig = np.linspace(1,6,21)
+    numreq = 250
+    numsig = np.linspace(0.5,6,21)
     nrs = np.size(numsig)
     avaave = np.empty([nrs,1])
     wavconave = np.empty([nrs,1])
@@ -1158,12 +1197,15 @@ else:
     ttavef = np.empty([nrs,1])
     thrptf = np.empty([nrs,1])
     norchavef = np.empty([nrs,1])
-    
+    start_time = time.time()
     for i in range(nrs):
-        avaave[i], wavconave[i], failave[i] ,ttave[i], thrpt[i], avaavev[i], wavconavev[i], failavev[i] ,ttavev[i], thrptv[i], avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i] = testrout(graphA, graphvar, edgesA, 20,False,numsig[i],numreq)
+        avaave[i], wavconave[i], failave[i] ,ttave[i], thrpt[i], avaavev[i], wavconavev[i], failavev[i] ,ttavev[i], thrptv[i], avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i] = testrout(graphA, graphvar, edgesA, 10,False,numsig[i],numreq)
+    end_time = time.time()
+    duration = time.time() - start_time
 
+print("Routing calculation duration: " + str(duration))
 
-# %%
+# %% plotting
 font = { 'family' : 'sans-serif',
         'weight' : 'normal',
         'size'   : 15}
@@ -1202,6 +1244,20 @@ if reqvar:
     plt.savefig('Thrptvsnreq.pdf', dpi=200,bbox_inches='tight')
     plt.show() 
     
+    Rs = 32
+    totthrptvp = thrptvp*avaavevp*Rs*1e-2
+    totthrptf = thrptf*avaavef*Rs*1e-2
+    
+    plt.plot(numreq, totthrptvp, label="GP")
+    plt.plot(numreq, totthrptf, label="FM")
+    plt.legend()
+    plt.xlabel("No. of requests")
+    plt.ylabel("Total throughput (Gb/s)")
+    plt.savefig('Totalthrptvsnreq.pdf', dpi=200,bbox_inches='tight')
+    plt.show() 
+    
+    
+    
 else: 
     plt.plot(numsig, avaavevp, label="GP")
     plt.plot(numsig, avaavef, label="FM")
@@ -1235,6 +1291,17 @@ else:
     plt.savefig('Thrptvsnsig.pdf', dpi=200,bbox_inches='tight')
     plt.show() 
     
+    Rs = 32
+    totthrptvp = thrptvp*avaavevp*Rs*1e-2
+    totthrptf = thrptf*avaavef*Rs*1e-2
+    
+    plt.plot(numsig, totthrptvp, label="GP")
+    plt.plot(numsig, totthrptf, label="FM")
+    plt.legend()
+    plt.xlabel("$\sigma$")
+    plt.ylabel("Total throughput (Gb/s)")
+    plt.savefig('Totalthrptvsnsig.pdf', dpi=200,bbox_inches='tight')
+    plt.show() 
     
 # =============================================================================
 # print("----------------------------------------------------------")
