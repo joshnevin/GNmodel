@@ -250,15 +250,46 @@ edgesD = {'1':{'2':0,'3':1,'4':2},'2':{'1':3,'4':4,'5':5},'3':{'1':6,'4':7,'6':8
          } 
 numedgesD = 46
 LspansD = 80
-# %% choose 'active' topology 
-graphA = graphN
-graphnormA = graphnormN
-numedgesA = numedgesN
-nodesA = nodesN
-edgesA = edgesN
-LspansA = LspansN
 
-# %%
+nodesAL = ['1','2','3','4','5','6','7','8','9','10','11']
+
+graphAL = {'1':{'4':1200,'5':1600},'2':{'3':1100,'7':300},'3':{'2':1100,'8':300},    
+         '4':{'1':1200,'5':1500,'9':500},'5':{'1':1600,'4':1500,'6':900}, '6':{'5':900,'7':700,'11':1000},
+         '7':{'2':300,'6':700,'10':1100}, '8':{'3':300,'10':900}, '9':{'4':500,'11':2200},
+         '10':{'7':1100,'8':900,'11':1100}, '11':{'6':1000,'9':2200,'10':1100}
+         } 
+graphnormAL = {'1':{'4':1200,'5':1600},'2':{'3':1100,'7':300},'3':{'2':1100,'8':300},    
+         '4':{'1':1200,'5':1500,'9':500},'5':{'1':1600,'4':1500,'6':900}, '6':{'5':900,'7':700,'11':1000},
+         '7':{'2':300,'6':700,'10':1100}, '8':{'3':300,'10':900}, '9':{'4':500,'11':2200},
+         '10':{'7':1100,'8':900,'11':1100}, '11':{'6':1000,'9':2200,'10':1100}
+         } 
+edgesAL = {'1':{'4':0,'5':1},'2':{'3':2,'7':3},'3':{'2':4,'8':5},    
+         '4':{'1':6,'5':7,'9':8},'5':{'1':9,'4':10,'6':11}, '6':{'5':12,'7':13,'11':14},
+         '7':{'2':15,'6':16,'10':17}, '8':{'3':18,'10':19}, '9':{'4':20,'11':21},
+         '10':{'7':22,'8':23,'11':24}, '11':{'6':25,'9':26,'10':27}
+         } 
+numedgesAL = 28
+LspansAL = 100
+# choose 'active' topology 
+graphA = graphAL
+if graphA == graphN:
+    graphnormA = graphnormN
+    numedgesA = numedgesN
+    nodesA = nodesN
+    edgesA = edgesN
+    LspansA = LspansN
+elif graphA == graphD:
+    graphnormA = graphnormD
+    numedgesA = numedgesD
+    nodesA = nodesD
+    edgesA = edgesD
+    LspansA = LspansD
+elif graphA == graphAL:
+    graphnormA = graphnormAL
+    numedgesA = numedgesAL
+    nodesA = nodesAL
+    edgesA = edgesAL
+    LspansA = LspansAL    
 def getedgelen(graph,numedges):
     edgelens = np.empty([numedges,1])
     count = 0
@@ -323,7 +354,14 @@ if datagen:
             linkPopt = linkPopt.reshape(1,1)
             np.savetxt('linkPoptD.csv', linkPopt, delimiter=',') 
             for p in range(numedges):
-                np.savetxt('linkpertD' + str(p) + '.csv', linkpert[p], delimiter=',')             
+                np.savetxt('linkpertD' + str(p) + '.csv', linkpert[p], delimiter=',') 
+        elif graphA == graphAL:
+            np.savetxt('linkSNRAL.csv', linkSNR, delimiter=',') 
+            np.savetxt('linkPchAL.csv', linkPch, delimiter=',') 
+            linkPopt = linkPopt.reshape(1,1)
+            np.savetxt('linkPoptAL.csv', linkPopt, delimiter=',') 
+            for p in range(numedges):
+                np.savetxt('linkpertAL' + str(p) + '.csv', linkpert[p], delimiter=',')   
         return linkSNR, linkPch, linkPopt, linkpert, linkPoptind
     
     linkSNR,linkPch,linkPopt, linkpert, linkPoptind = savedat(edgelensA, numedgesA,LspansA)
@@ -348,6 +386,14 @@ if datagen == False:
             for p in range(numedges):
                 pert = np.genfromtxt(open("linkpertD"  + str(p) + ".csv", "r"), delimiter=",", dtype =float)
                 linkpert.append(pert)
+        elif graphA == graphAL:
+            linkSNR = np.genfromtxt(open("linkSNRAL.csv", "r"), delimiter=",", dtype =float)
+            linkPch = np.genfromtxt(open("linkPchAL.csv", "r"), delimiter=",", dtype =float)
+            linkpert = []
+            linkPopt = np.genfromtxt(open("linkPoptAL.csv", "r"), delimiter=",", dtype =float)
+            for p in range(numedges):
+                pert = np.genfromtxt(open("linkpertAL"  + str(p) + ".csv", "r"), delimiter=",", dtype =float)
+                linkpert.append(pert)
                 
         return linkSNR, linkPch, linkpert, linkPopt, linkPoptind, Popt
 
@@ -358,10 +404,14 @@ if graphA == graphN:
     prmn = np.genfromtxt(open("prmn.csv", "r"), delimiter=",", dtype =float)
     sigma = np.genfromtxt(open("sig.csv", "r"), delimiter=",", dtype =float)
     sigrf = np.genfromtxt(open("sigrf.csv", "r"), delimiter=",", dtype =float)
-if graphA == graphD:
+elif graphA == graphD:
     prmn = np.genfromtxt(open("prmnD.csv", "r"), delimiter=",", dtype =float)
     sigma = np.genfromtxt(open("sigD.csv", "r"), delimiter=",", dtype =float)
     sigrf = np.genfromtxt(open("sigrfD.csv", "r"), delimiter=",", dtype =float)
+elif graphA == graphAL:
+    prmn = np.genfromtxt(open("prmnAL.csv", "r"), delimiter=",", dtype =float)
+    sigma = np.genfromtxt(open("sigAL.csv", "r"), delimiter=",", dtype =float)
+    sigrf = np.genfromtxt(open("sigrfAL.csv", "r"), delimiter=",", dtype =float)
 
 # find optimum from the predictive mean
 def vargraphcalcs(prmn,sigma,edgelens):
@@ -402,7 +452,17 @@ elif graphA == graphD:
          '13':{'12':gwte[42][0],'14':gwte[43][0]}, '14':{'11':gwte[44][0],'13':gwte[45][0]}
          } 
     
-    
+elif graphA == graphAL:
+    graphvar = {'1':{'4':gwt[0][0],'5':gwt[1][0]},'2':{'3':gwt[2][0],'7':gwt[3][0]},'3':{'2':gwt[4][0],'8':gwt[5][0]},    
+         '4':{'1':gwt[6][0],'5':gwt[7][0],'9':gwt[8][0]},'5':{'1':gwt[9][0],'4':gwt[10][0],'6':gwt[11][0]}, '6':{'5':gwt[12][0],'7':gwt[13][0],'11':gwt[14][0]},
+         '7':{'2':gwt[15][0],'6':gwt[16][0],'10':gwt[17][0]}, '8':{'3':gwt[18][0],'10':gwt[19][0]}, '9':{'4':gwt[20][0],'11':gwt[21][0]},
+         '10':{'7':gwt[22][0],'8':gwt[23][0],'11':gwt[24][0]}, '11':{'6':gwt[25][0],'9':gwt[26][0],'10':gwt[27][0]}
+         } 
+    graphvared = {'1':{'4':gwte[0][0],'5':gwte[1][0]},'2':{'3':gwte[2][0],'7':gwte[3][0]},'3':{'2':gwte[4][0],'8':gwte[5][0]},    
+         '4':{'1':gwte[6][0],'5':gwte[7][0],'9':gwte[8][0]},'5':{'1':gwte[9][0],'4':gwte[10][0],'6':gwte[11][0]}, '6':{'5':gwte[12][0],'7':gwte[13][0],'11':gwte[14][0]},
+         '7':{'2':gwte[15][0],'6':gwte[16][0],'10':gwte[17][0]}, '8':{'3':gwte[18][0],'10':gwte[19][0]}, '9':{'4':gwte[20][0],'11':gwte[21][0]},
+         '10':{'7':gwte[22][0],'8':gwte[23][0],'11':gwte[24][0]}, '11':{'6':gwte[25][0],'9':gwte[26][0],'10':gwte[27][0]}
+         } 
 
 def fmsnr(edgelen, Lspans):
     Ls = Lspans
@@ -468,7 +528,7 @@ def requestgen(graph):
                 des = random.choice(list(graph.keys()))
             return src, des
 
-def SNRnew(edgelen, ripplepert, Popt, Lspans):
+def SNRnew(edgelen, ripplepert, Popt, Lspans, numlam):
         Ls = Lspans
         NchNy = numlam
         D = Disp
@@ -539,6 +599,19 @@ def fmrta(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens,
                 '10':{'4':400,'5':480,'9':240,'11':320,'12':240}, '11':{'5':320,'10':320,'12':240,'14':240}, '12':{'10':240,'11':240,'13':80},
                 '13':{'12':80,'14':160}, '14':{'11':240,'13':160}
                 } , nodes[i], nodes[j])
+                if i == j:
+                    continue  # don't include lightpaths of length 0
+                else:
+                    dis.append(d)
+                    path.append(p)
+    elif graphA == graphAL:
+        for i in range(numnodes):    
+            for j in range(numnodes): 
+                d, p = dijkstra({'1':{'4':1200,'5':1600},'2':{'3':1100,'7':300},'3':{'2':1100,'8':300},    
+                '4':{'1':1200,'5':1500,'9':500},'5':{'1':1600,'4':1500,'6':900}, '6':{'5':900,'7':700,'11':1000},
+                '7':{'2':300,'6':700,'10':1100}, '8':{'3':300,'10':900}, '9':{'4':500,'11':2200},
+                '10':{'7':1100,'8':900,'11':1100}, '11':{'6':1000,'9':2200,'10':1100}
+                }  , nodes[i], nodes[j])
                 if i == j:
                     continue  # don't include lightpaths of length 0
                 else:
@@ -622,7 +695,8 @@ def fmrta(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens,
         if edgesuc == np.size(linkSNR[randedges],0):
             # generate new SNR value here
             for w in range(np.size(randedges)):
-                estSNR = SNRnew(edgelens[randedges[w]], linkpert[randedges[w]], linkPopt, Lspans)
+                # retrieve estlam row corresponding to randegdes[w] index, find number of 1s, pass to SNRnew()
+                estSNR = SNRnew(edgelens[randedges[w]], linkpert[randedges[w]], linkPopt, Lspans, np.count_nonzero(estlam[randedges[w]])+1 )
                 if estSNR > FT[w]:
                     # link successfully established
                     edgesuc2 = edgesuc2 + 1
@@ -645,6 +719,15 @@ def fmrta(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens,
         print("Normal total traversal time = " + str('%.2f' % tottime) + "s")
         print("Normal number of failures = " + str(failures))
     return ava, estlam, reqlams, tottime, conten,ct128, ct64, ct16, ct4,ct2, failures, noreach
+# =============================================================================
+# testsrc = []
+# testdes = []
+# for _ in range(80):
+#     rsctest, rdstest = requestgen(graphA)
+#     testsrc.append(rsctest)
+#     testdes.append(rdstest)
+# test1, test2, test3, test4, test5, test6, test7, test8, test9, test10, test11, test12 = fmrta(graphA, edgesA, testsrc, testdes, False, margin,nodesA,numedgesA,edgelensA,fmSNR, LspansA)
+# =============================================================================
 # %%
 # generate shortest path between each pair of nodes and store the path and distance
 def basicrta(graph, edges, Rsource, Rdest, showres, nodes,numedges,edgelens,Lspans):
@@ -674,6 +757,19 @@ def basicrta(graph, edges, Rsource, Rdest, showres, nodes,numedges,edgelens,Lspa
                 '10':{'4':400,'5':480,'9':240,'11':320,'12':240}, '11':{'5':320,'10':320,'12':240,'14':240}, '12':{'10':240,'11':240,'13':80},
                 '13':{'12':80,'14':160}, '14':{'11':240,'13':160}
                 } , nodes[i], nodes[j])
+                if i == j:
+                    continue  # don't include lightpaths of length 0
+                else:
+                    dis.append(d)
+                    path.append(p)
+    elif graphA == graphAL:
+        for i in range(numnodes):    
+            for j in range(numnodes): 
+                d, p = dijkstra({'1':{'4':1200,'5':1600},'2':{'3':1100,'7':300},'3':{'2':1100,'8':300},    
+                '4':{'1':1200,'5':1500,'9':500},'5':{'1':1600,'4':1500,'6':900}, '6':{'5':900,'7':700,'11':1000},
+                '7':{'2':300,'6':700,'10':1100}, '8':{'3':300,'10':900}, '9':{'4':500,'11':2200},
+                '10':{'7':1100,'8':900,'11':1100}, '11':{'6':1000,'9':2200,'10':1100}
+                }  , nodes[i], nodes[j])
                 if i == j:
                     continue  # don't include lightpaths of length 0
                 else:
@@ -753,7 +849,8 @@ def basicrta(graph, edges, Rsource, Rdest, showres, nodes,numedges,edgelens,Lspa
         if edgesuc == np.size(linkSNR[randedges],0):
             # generate new SNR value here
             for w in range(np.size(randedges)):
-                estSNR = SNRnew(edgelens[randedges[w]], linkpert[randedges[w]], linkPopt,Lspans)
+                # retrieve estlam row corresponding to randegdes[w] index, find number of 1s, pass to SNRnew()
+                estSNR = SNRnew(edgelens[randedges[w]], linkpert[randedges[w]], linkPopt,Lspans, np.count_nonzero(estlam[randedges[w]])+1 )
                 if estSNR > FT[w]:
                     # link successfully established
                     edgesuc2 = edgesuc2 + 1
@@ -772,7 +869,7 @@ def basicrta(graph, edges, Rsource, Rdest, showres, nodes,numedges,edgelens,Lspa
         print("Normal total traversal time = " + str('%.2f' % tottime) + "s")
         print("Normal number of failures = " + str(failures))
     return ava, estlam, reqlams, tottime, conten, ct128, ct64, ct16, ct4,ct2, failures
-#test1, test2, test3, _, _,test4, test5, test6 = basicrta(graph, edges, rsrc, rdes, True)
+#test1, test2, test3, _, _,test4, test5, test6 = basicrta(graphA, edgesA, Rsource, Rdest, False, nodes,numedges,edgelens,Lspans)
 # %%
 def varrta(graph,edges,Rsource,Rdest,showres,nodes,numedges,edgelens,Lspans):
     dis = []
@@ -800,6 +897,19 @@ def varrta(graph,edges,Rsource,Rdest,showres,nodes,numedges,edgelens,Lspans):
                 '7':{'4':gwt[22][0],'6':gwt[23][0],'9':gwt[24][0]}, '8':{'6':gwt[25][0],'9':gwt[26][0]}, '9':{'7':gwt[27][0],'8':gwt[28][0],'10':gwt[29][0]},
                 '10':{'4':gwt[30][0],'5':gwt[31][0],'9':gwt[32][0],'11':gwt[33][0],'12':gwt[34][0]}, '11':{'5':gwt[35][0],'10':gwt[36][0],'12':gwt[37][0],'14':gwt[38][0]}, '12':{'10':gwt[39][0],'11':gwt[40][0],'13':gwt[41][0]},
                 '13':{'12':gwt[42][0],'14':gwt[43][0]}, '14':{'11':gwt[44][0],'13':gwt[45][0]}
+                } , nodes[i], nodes[j])
+                if i == j:
+                    continue  # don't include lightpaths of length 0
+                else:
+                    dis.append(d)
+                    path.append(p)
+    elif graphA == graphAL: 
+        for i in range(numnodes):    
+            for j in range(numnodes): 
+                d, p = dijkstra({'1':{'4':gwt[0][0],'5':gwt[1][0]},'2':{'3':gwt[2][0],'7':gwt[3][0]},'3':{'2':gwt[4][0],'8':gwt[5][0]},    
+                '4':{'1':gwt[6][0],'5':gwt[7][0],'9':gwt[8][0]},'5':{'1':gwt[9][0],'4':gwt[10][0],'6':gwt[11][0]}, '6':{'5':gwt[12][0],'7':gwt[13][0],'11':gwt[14][0]},
+                '7':{'2':gwt[15][0],'6':gwt[16][0],'10':gwt[17][0]}, '8':{'3':gwt[18][0],'10':gwt[19][0]}, '9':{'4':gwt[20][0],'11':gwt[21][0]},
+                '10':{'7':gwt[22][0],'8':gwt[23][0],'11':gwt[24][0]}, '11':{'6':gwt[25][0],'9':gwt[26][0],'10':gwt[27][0]}
                 } , nodes[i], nodes[j])
                 if i == j:
                     continue  # don't include lightpaths of length 0
@@ -880,8 +990,8 @@ def varrta(graph,edges,Rsource,Rdest,showres,nodes,numedges,edgelens,Lspans):
        
         if edgesuc == np.size(linkSNR[randedges],0):
             # generate new SNR value here
-            for w in range(np.size(randedges)):
-                estSNR = SNRnew(edgelens[randedges[w]], linkpert[randedges[w]], linkPopt, Lspans)
+            for w in range(np.size(randedges)):                                
+                estSNR = SNRnew(edgelens[randedges[w]], linkpert[randedges[w]], linkPopt, Lspans, np.count_nonzero(estlam[randedges[w]])+1 )
                 if estSNR > FT[w]:
                     # link successfully established
                     edgesuc2 = edgesuc2 + 1
@@ -931,6 +1041,19 @@ def varrtap(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lsp
                 '7':{'4':gwte[22][0],'6':gwte[23][0],'9':gwte[24][0]}, '8':{'6':gwte[25][0],'9':gwte[26][0]}, '9':{'7':gwte[27][0],'8':gwte[28][0],'10':gwte[29][0]},
                 '10':{'4':gwte[30][0],'5':gwte[31][0],'9':gwte[32][0],'11':gwte[33][0],'12':gwte[34][0]}, '11':{'5':gwte[35][0],'10':gwte[36][0],'12':gwte[37][0],'14':gwte[38][0]}, '12':{'10':gwte[39][0],'11':gwte[40][0],'13':gwte[41][0]},
                 '13':{'12':gwte[42][0],'14':gwte[43][0]}, '14':{'11':gwte[44][0],'13':gwte[45][0]}
+                }  , nodes[i], nodes[j])
+                if i == j:
+                    continue  # don't include lightpaths of length 0
+                else:
+                    dis.append(d)
+                    path.append(p)
+    elif graphA == graphAL:
+        for i in range(numnodes):    
+            for j in range(numnodes): 
+                d, p = dijkstra({'1':{'4':gwte[0][0],'5':gwte[1][0]},'2':{'3':gwte[2][0],'7':gwte[3][0]},'3':{'2':gwte[4][0],'8':gwte[5][0]},    
+                '4':{'1':gwte[6][0],'5':gwte[7][0],'9':gwte[8][0]},'5':{'1':gwte[9][0],'4':gwte[10][0],'6':gwte[11][0]}, '6':{'5':gwte[12][0],'7':gwte[13][0],'11':gwte[14][0]},
+                '7':{'2':gwte[15][0],'6':gwte[16][0],'10':gwte[17][0]}, '8':{'3':gwte[18][0],'10':gwte[19][0]}, '9':{'4':gwte[20][0],'11':gwte[21][0]},
+                '10':{'7':gwte[22][0],'8':gwte[23][0],'11':gwte[24][0]}, '11':{'6':gwte[25][0],'9':gwte[26][0],'10':gwte[27][0]}
                 }  , nodes[i], nodes[j])
                 if i == j:
                     continue  # don't include lightpaths of length 0
@@ -1017,7 +1140,7 @@ def varrtap(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lsp
         if edgesuc == np.size(linkSNR[randedges],0):
             # generate new SNR value here
             for w in range(np.size(randedges)):
-                estSNR = SNRnew(edgelens[randedges[w]], linkpert[randedges[w]], linkPch[randedges[w]], Lspans)
+                estSNR = SNRnew(edgelens[randedges[w]], linkpert[randedges[w]], linkPch[randedges[w]], Lspans, np.count_nonzero(estlam[randedges[w]])+1 )
                 #estSNR = SNRnew(edgelens[randedges[w]], linkpert[randedges[w]], linkPch[0][randedges[w]])
                 if estSNR > FT[w]:
                     # link successfully established
@@ -1093,7 +1216,7 @@ def testrout(graph, graphvar, edges, numtests,showres,numsig, numreq):
         #ava[i], _, _, tottime[i],conten[i],ct128[i],ct64[i],ct16[i], ct4[i],ct2[i], fail[i]  = basicrta(graph,edges,rsrct,rdest,showres,nodesA,numedgesA,edgelensA,LspansA)
         #avav[i], _, _, tottimev[i], contenv[i],ct128v[i],ct64v[i],ct16v[i], ct4v[i],ct2v[i], failv[i]   = varrta(graphvar,edges,rsrct,rdest,showres,nodesA,numedgesA,edgelensA,LspansA)
         avavp[i], _, _, tottimevp[i], contenvp[i], conf , ct128vp[i], ct64vp[i],ct16vp[i], ct4vp[i],ct2vp[i], failvp[i]   = varrtap(graphvared,edges,rsrct,rdest,showres,numsig,nodesA,numedgesA,edgelensA,LspansA)
-        avaf[i], _, _, tottimef[i], contenf[i], ct128f[i], ct64f[i],ct16f[i], ct4f[i],ct2f[i], failf[i], noreachf[i]   = fmrta(graph,edges,rsrct,rdest,showres,margin,nodesD,numedgesA,edgelensA,fmSNR,LspansA)
+        avaf[i], _, _, tottimef[i], contenf[i], ct128f[i], ct64f[i],ct16f[i], ct4f[i],ct2f[i], failf[i], noreachf[i]   = fmrta(graph,edges,rsrct,rdest,showres,margin,nodesA,numedgesA,edgelensA,fmSNR,LspansA)
     
     avaave = np.mean(ava)
     ttave = np.mean(tottime)
