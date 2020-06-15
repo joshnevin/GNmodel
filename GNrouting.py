@@ -35,7 +35,7 @@ MIstuff = False
 
 numpoints = 100
 
-# %% ================================ NDFIS data stuff  ===========================================
+#  ================================ NDFIS data stuff  ===========================================
 if reachcalculation:
     NDFISdata = np.genfromtxt(open("NDFISdata.csv", "r"), delimiter=",", dtype =float)
     NDFISdata = np.delete(NDFISdata,0,0 )
@@ -63,7 +63,7 @@ if repairlossimport:
     nbinsrep = int(np.genfromtxt(open("Astotalnbins.csv", "r"), delimiter=",", dtype =float))
     countsrep, binsrep = np.histogram(repairlossdata, nbinsrep)
 
-# %% ======================== NDFIS loss fitting stuff ======================== 
+#  ======================== NDFIS loss fitting stuff ======================== 
 if histogramstuff: 
     # find bin width from Friedman-Diaconis rule 
     # =============================================================================
@@ -95,7 +95,7 @@ if histogramstuff:
     # plt.savefig('NDFISlosshist.png', dpi=200)
     # plt.show()
     # =============================================================================
-    # %% random draws from histogram 
+    #  random draws from histogram 
     
     countsnorm = np.zeros(np.size(counts))
     for i in range(np.size(countsnorm)):
@@ -119,7 +119,7 @@ if histogramstuff:
                 drawnum = np.random.uniform(bins[i],bins[i+1])
                 break
         return drawnum
-# %%  ================================ set params and call main ================================
+#   ================================ set params and call main ================================
 #dev = 1  # % deviation from baseline 
 PchdBm = np.linspace(-10, 10, num = numpoints, dtype =float) 
 #PchdBm = 0
@@ -155,7 +155,7 @@ gain_target = alpha*LspansN
 # NF = lin2db(db2lin(nf1) + db2lin(nf2)/db2lin(g1a))  
 # =============================================================================
 NF = 5.5
-# %% SNR variation due to ripple emulation
+#  SNR variation due to ripple emulation
 
 ripplepertmax = 0.1
 ripplepertmin = -0.1
@@ -204,7 +204,7 @@ def rippledatagen(PchdBm,numspans):
 #np.savetxt('SNRripple10.csv', SNRripple, delimiter=',') 
 #np.savetxt('Pchnum75.csv', Pchripple, delimiter=',') 
 #np.savetxt('SNRnum75.csv', SNRripple, delimiter=',') 
-# %% graph definitions
+#  graph definitions
 nodesN = ['1','2','3','4','5','6','7','8','9','10','11','12','13','14']
 
 graphN = {'1':{'2':2100,'3':3000,'8':4800},'2':{'1':2100,'3':1200,'4':1500},'3':{'1':3000,'2':1200,'6':3600},    
@@ -271,7 +271,7 @@ edgesAL = {'1':{'4':0,'5':1},'2':{'3':2,'7':3},'3':{'2':4,'8':5},
 numedgesAL = 28
 LspansAL = 100
 # choose 'active' topology 
-graphA = graphD
+graphA = graphN
 if graphA == graphN:
     graphnormA = graphnormN
     numedgesA = numedgesN
@@ -300,7 +300,7 @@ def getedgelen(graph,numedges):
             count = count + 1
     return edgelens 
 edgelensA = getedgelen(graphA, numedgesA)
-# %%
+# 
 PchdBm = np.linspace(-10,10,numpoints)
 #ripplepertmax = 0.1  # for fixed perturbation between spans 
 #ripplepertmin = -0.1
@@ -317,6 +317,7 @@ if datagen:
         Poptr = np.linspace(Popt-1.5, Popt+1.5, numpoints)
         numspans = int(edgelen/Lspans)
         ripplepert = np.random.uniform(0.1,0.2,numspans+1)
+        #ripplepert = 0.2*np.ones(numspans+1)  # fixed perturbation due to EDFA power-excursions of 0.2dB
         Poptran = Poptr  +  np.random.uniform(-ripplepert[0], ripplepert[0], numpoints)
         if numspans == 1: # deal with case of one span link (occurs in DTAG)
             Poptfinal = Poptran
@@ -338,7 +339,7 @@ if datagen:
         for i in range(numedges):
             linkSNR[i], linkPopt, linkPoptind, linkpertP = routingdatagen2(edgelens[i],Lspans)
             linkpert.append(linkpertP)       
-        linkPch = np.transpose(np.linspace(linkPopt-1.5, linkPopt+1.5, numpoints).reshape(100,1))
+        linkPch = np.transpose(np.linspace(linkPopt-1.5, linkPopt+1.5, numpoints).reshape(numpoints,1))
         TRxSNR = 26 # add TRx noise of 26dB B2B 
         linkSNR = lin2db( 1/(  1/(db2lin(linkSNR)) + 1/(db2lin(TRxSNR))  ))
         if graphA == graphN:
@@ -398,34 +399,151 @@ if datagen == False:
         return linkSNR, linkPch, linkpert, linkPopt, linkPoptind, Popt
 
     linkSNR, linkPch, linkpert, linkPopt, linkPoptind, Popt = importdat(LspansA,numedgesA)
+# %%
+
+def datatest(edgelen,Lspans,sd):
+        lam = 1550
+        Rs = 32
+        f = 299792458/(lam*1e-9) # operating frequency [Hz]
+        h = 6.63*1e-34  # Planck's constant [Js] 
+        Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] # }
+        Popt = PchdBm[np.argmax(Pun)]                                                   # }could do this outside of function
+        Poptind = int(np.argmax(Pun))                                                   # }
+        Poptr = np.linspace(Popt-1.5, Popt+1.5, numpoints)
+        numspans = int(edgelen/Lspans)
+        Poptran = Poptr  +  np.random.normal(0, sd, numpoints)
+        if numspans == 1: # deal with case of one span link (occurs in DTAG)
+            Poptfinal = Poptran
+        Gnli = np.empty([numspans,numpoints])
+        for i in range(numspans):
+            Gnli[i] = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, Poptran, NF, NLco,False,numpoints)[4]
+            #ripplepert = np.random.uniform(0.1,0.2)
+            Poptran = Poptran +  np.random.normal(0, sd, numpoints)
+            if i == numspans-2:
+                    Poptfinal = Poptran  # select the power that was put into the last span to calculate SNR
+        Gnli = np.sum(Gnli,axis=0)
+        Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
+        Pch = 1e-3*10**(Poptfinal/10) 
+        return lin2db(  (Pch)/(Pase*np.ones(numpoints) + Gnli*Rs*1e9)  ), Popt, Poptind
+        #return lin2db( ( ((Pch)/(Pase*np.ones(numpoints) + Gnli*Rs*1e9)  )**(-1)  +  np.random.normal(db2lin(26), db2lin(TRxsd), numpoints)**(-1) )**(-1) ) , Popt, Poptind
+
+
+def datatest2(edgelen,Lspans,sd):
+        lam = 1550
+        Rs = 32
+        f = 299792458/(lam*1e-9) # operating frequency [Hz]
+        h = 6.63*1e-34  # Planck's constant [Js] 
+        Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] # }
+        Popt = PchdBm[np.argmax(Pun)]                                                   # }could do this outside of function
+        Poptind = int(np.argmax(Pun))                                                   # }
+        Poptr = np.linspace(Popt-1.5, Popt+1.5, numpoints)
+        numspans = int(edgelen/Lspans)
+        Poptran = Poptr  
+        if numspans == 1: # deal with case of one span link (occurs in DTAG)
+            Poptfinal = Poptran
+        Gnli = np.empty([numspans,numpoints])
+        for i in range(numspans):
+            Gnli[i] = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, Poptran, NF, NLco,False,numpoints)[4]
+            if i == numspans-2:
+                    Poptfinal = Poptran  # select the power that was put into the last span to calculate SNR
+        Gnli = np.sum(Gnli,axis=0)
+        Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
+        Pch = 1e-3*10**(Poptfinal/10) 
+        SNR = Pch/(Pase*np.ones(numpoints) + Gnli*Rs*1e9) + np.random.normal(0, db2lin(sd), numpoints)
+        return lin2db(SNR), Popt, Poptind
+        #return lin2db( ( ((Pch)/(Pase*np.ones(numpoints) + Gnli*Rs*1e9)  )**(-1)  +  np.random.normal(db2lin(26), db2lin(TRxsd), numpoints)**(-1) )**(-1) ) , Popt, Poptind
+
+testlens = np.linspace(1000,5000, 5)
+testsnr = np.empty([np.size(testlens),numpoints])
+#for i in range(numedgesA):
+for i in range(np.size(testlens)):
+    testsnr[i], testpopt, testpopti = datatest(testlens[i],LspansA,0.005)
+    #testsnr[i], testpopt, testpopti = datatest2(testlens[i],LspansA,0.04)
+ind = 4
+testPch = (np.linspace(testpopt-1.5, testpopt+1.5, numpoints))
+
+testlens = np.linspace(1000,5000, 5)
+testsnr = np.empty([np.size(testlens),numpoints])
+#for i in range(numedgesA):
+for i in range(np.size(testlens)):
+    testsnr[i], testpopt, testpopti = datatest(testlens[i],LspansA,0.005)
+    #testsnr[i], testpopt, testpopti = datatest2(testlens[i],LspansA,0.04)
+
+testPch = (np.linspace(testpopt-1.5, testpopt+1.5, numpoints))
+
+
+if datagen:
+    def savedatgauss(edgelens, numedges,Lspans):    
+        linkSNR = np.empty([numedges,numpoints])
+        for i in range(numedges):
+            linkSNR[i], linkPopt, linkPoptind = datatest(edgelens[i],Lspans,0.005)
+        linkPch = np.transpose(np.linspace(linkPopt-1.5, linkPopt+1.5, numpoints).reshape(numpoints,1))
+        TRxSNR = 26 # add TRx noise of 26dB B2B 
+        linkSNR = lin2db( 1/(  1/(db2lin(linkSNR)) + 1/(db2lin(TRxSNR))  ))
+        if graphA == graphN:
+            np.savetxt('linkSNRNgauss0005.csv', linkSNR, delimiter=',') 
+            np.savetxt('linkPchNgauss0005.csv', linkPch, delimiter=',') 
+            linkPopt = linkPopt.reshape(1,1)
+            np.savetxt('linkPoptNgauss0005.csv', linkPopt, delimiter=',') 
+        elif graphA == graphD:
+            np.savetxt('linkSNRDgauss0005.csv', linkSNR, delimiter=',') 
+            np.savetxt('linkPchDgauss0005.csv', linkPch, delimiter=',') 
+            linkPopt = linkPopt.reshape(1,1)
+            np.savetxt('linkPoptDgauss0005.csv', linkPopt, delimiter=',') 
+        elif graphA == graphAL:
+            np.savetxt('linkSNRALgauss0005.csv', linkSNR, delimiter=',') 
+            np.savetxt('linkPchALgauss0005.csv', linkPch, delimiter=',') 
+            linkPopt = linkPopt.reshape(1,1)
+            np.savetxt('linkPoptALgauss0005.csv', linkPopt, delimiter=',') 
+        return linkSNR, linkPch, linkPopt, linkPoptind
+
+    linkSNR, linkPch, linkPopt, linkPoptind = savedatgauss(edgelensA, numedgesA, LspansA)
+
+# %%
+ind = 36
+plt.plot(testPch, linkSNR[ind], '+')
+plt.show() 
 
 # %% import trained GP models
 if graphA == graphN:
     prmn = np.genfromtxt(open("prmn.csv", "r"), delimiter=",", dtype =float)
-    sigma = np.genfromtxt(open("sig.csv", "r"), delimiter=",", dtype =float)
-    sigrf = np.genfromtxt(open("sigrf.csv", "r"), delimiter=",", dtype =float)
+    prmnp = np.genfromtxt(open("prmnp.csv", "r"), delimiter=",", dtype =float)
+    sigmaold = np.genfromtxt(open("sig.csv", "r"), delimiter=",", dtype =float)
+    #sigrf = np.genfromtxt(open("sigrf.csv", "r"), delimiter=",", dtype =float)
 elif graphA == graphD:
     prmn = np.genfromtxt(open("prmnD.csv", "r"), delimiter=",", dtype =float)
-    sigma = np.genfromtxt(open("sigD.csv", "r"), delimiter=",", dtype =float)
-    sigrf = np.genfromtxt(open("sigrfD.csv", "r"), delimiter=",", dtype =float)
+    prmnp = np.genfromtxt(open("prmnpD.csv", "r"), delimiter=",", dtype =float)
+    sigmaold = np.genfromtxt(open("sigD.csv", "r"), delimiter=",", dtype =float)
+    #sigma = np.genfromtxt(open("sigD.csv", "r"), delimiter=",", dtype =float)
+    #sigrf = np.genfromtxt(open("sigrfD.csv", "r"), delimiter=",", dtype =float)
 elif graphA == graphAL:
     prmn = np.genfromtxt(open("prmnAL.csv", "r"), delimiter=",", dtype =float)
-    sigma = np.genfromtxt(open("sigAL.csv", "r"), delimiter=",", dtype =float)
-    sigrf = np.genfromtxt(open("sigrfAL.csv", "r"), delimiter=",", dtype =float)
-
+    prmnp = np.genfromtxt(open("prmnpAL.csv", "r"), delimiter=",", dtype =float)
+    sigmaold = np.genfromtxt(open("sigAL.csv", "r"), delimiter=",", dtype =float)
+    #sigrf = np.genfromtxt(open("sigrfAL.csv", "r"), delimiter=",", dtype =float)
+sigma = (prmnp - prmn)/2
+# =============================================================================
+# =============================================================================
+# test = sigmaold - sigma 
+# plt.plot(sigmaold[0], label = "$\sigma_o$")
+# plt.plot(test[0], label = "$\sigma_o$ - $\sigma_n$")
+# plt.plot(sigma[0], label = "$\sigma_n$")
+# plt.xlabel("$\mathrm{P_{ch}}$ index")
+# plt.legend(ncol = 3)
+# plt.savefig('diffsigma.pdf', dpi=200,bbox_inches='tight')
+# plt.show()
+# =============================================================================
+# %% =============================================================================
 # find optimum from the predictive mean
 def vargraphcalcs(prmn,sigma,edgelens):
     prmnopt = [np.argmax(prmn[i]) for i in range(np.size(prmn,0))]
     gsige = [sigma[i][prmnopt[i]] for i in range(np.size(prmn,0))]  # use predictive mean to get optimum Pch
     gwte = [edgelens[i]*gsige[i] for i in range(np.size(prmn,0))]
     gsig = [sigma[i][linkPoptind] for i in range(np.size(sigma,0))]
-    gwt = [edgelens[i]*gsig[i] for i in range(np.size(sigma,0))]
+    gwt = [edgelens[i]*gsig[i] for i in range(np.size(sigma,0))]  # use maximum of GN model to get optimum Pch (LOGON)
     return prmnopt, gsige, gwte, gsig, gwt
-
 prmnopt, gsige, gwte, gsig, gwt = vargraphcalcs(prmn, sigma, edgelensA)
-
 if graphA == graphN:
-
     graphvar = {'1':{'2':gwt[0][0],'3':gwt[1][0],'8':gwt[2][0]},'2':{'1':gwt[3][0],'3':gwt[4][0],'4':gwt[5][0]},'3':{'1':gwt[6][0],'2':gwt[7][0],'6':gwt[8][0]},    
                  '4':{'2':gwt[9][0],'5':gwt[10][0],'11':gwt[11][0]},'5':{'4':gwt[12][0],'6':gwt[13][0],'7':gwt[14][0]}, '6':{'3':gwt[15][0],'5':gwt[16][0],'10':gwt[17][0],'14':gwt[18][0]},
                  '7':{'5':gwt[19][0],'8':gwt[20][0],'10':gwt[21][0]}, '8':{'1':gwt[22][0],'7':gwt[23][0],'9':gwt[24][0]}, '9':{'8':gwt[25][0],'10':gwt[26][0],'12':gwt[27][0],'13':gwt[28][0]},
@@ -497,6 +615,85 @@ def fmdatagen(edgelens,Lspans):
     return fmSNR
 
 fmSNR = fmdatagen(edgelensA,LspansA)
+
+# %%
+def plaingn(edgelen,Lspans):
+        lam = 1550
+        Rs = 32
+        f = 299792458/(lam*1e-9) # operating frequency [Hz]
+        h = 6.63*1e-34  # Planck's constant [Js] 
+        Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] # }
+        Popt = PchdBm[np.argmax(Pun)]                                                   # }could do this outside of function
+        Poptind = int(np.argmax(Pun))                                                   # }
+        Poptr = np.linspace(Popt-1.5, Popt+1.5, numpoints)
+        numspans = int(edgelen/Lspans)
+        #ripplepert = np.random.uniform(0.1,0.2,numspans+1)
+        #ripplepert = 0.2*np.ones(numspans+1)  # fixed perturbation due to EDFA power-excursions of 0.2dB
+        Poptran = Poptr # +  np.random.uniform(-ripplepert[0], ripplepert[0], numpoints)
+        if numspans == 1: # deal with case of one span link (occurs in DTAG)
+            Poptfinal = Poptran
+        Gnli = np.empty([numspans,numpoints])
+        for i in range(numspans):
+            Gnli[i] = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, Poptran, NF, NLco,False,numpoints)[4]
+            #ripplepert = np.random.uniform(0.1,0.2)
+            #Poptran = Poptran + np.random.uniform(-ripplepert[i+1], ripplepert[i+1], numpoints)
+            if i == numspans-2:
+                    Poptfinal = Poptran  # select the power that was put into the last span to calculate SNR
+        Gnli = np.sum(Gnli,axis=0)
+        Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
+        Pch = 1e-3*10**(Poptfinal/10) 
+        return lin2db((Pch)/(Pase*np.ones(numpoints) + Gnli*Rs*1e9))
+# %%
+tind = 0
+nnsnr = plaingn(edgelensA[tind],LspansA)
+
+plt.plot(linkPch, linkSNR[tind], '+', label = 'GN + noise')
+plt.plot(linkPch, nnsnr, label = 'GN')
+plt.xlabel("$\mathrm{P_{ch}}$ (dBm)")
+plt.ylabel("SNR (dB)")
+plt.legend()
+plt.savefig('demosnrvspch1100.pdf', dpi=200,bbox_inches='tight')
+plt.show()
+
+prmnp2 = prmn[tind] + 2*sigma[tind]
+prmnm2 = prmn[tind] - 2*sigma[tind]
+prmnp3 = prmn[tind] + 3*sigma[tind]
+prmnm3 = prmn[tind] - 3*sigma[tind]
+prmnp4 = prmn[tind] + 4*sigma[tind]
+prmnm4 = prmn[tind] - 4*sigma[tind]
+
+plt.plot(linkPch, linkSNR[tind],'+')
+plt.plot(linkPch, prmn[tind], label = 'GP')
+plt.fill(np.concatenate([linkPch, linkPch[::-1]]),
+         np.concatenate([prmnp2,
+                         (prmnm2)[::-1]]),
+         alpha=0.3, fc='b', ec='None', label='$2 \sigma$')
+# =============================================================================
+# plt.fill(np.concatenate([linkPch, linkPch[::-1]]),
+#          np.concatenate([prmnp3,
+#                          (prmnp2)[::-1]]),
+#          alpha=0.3, fc='r', ec='None', label='$3 \sigma$')
+# plt.fill(np.concatenate([linkPch, linkPch[::-1]]),
+#          np.concatenate([prmnm2,
+#                          (prmnm3)[::-1]]),
+#          alpha=0.3, fc='r', ec='None')
+# plt.fill(np.concatenate([linkPch, linkPch[::-1]]),
+#          np.concatenate([prmnp4,
+#                          (prmnp3)[::-1]]),
+#          alpha=0.3, fc='y', ec='None', label='$4 \sigma$')
+# plt.fill(np.concatenate([linkPch, linkPch[::-1]]),
+#          np.concatenate([prmnm3,
+#                          (prmnm4)[::-1]]),
+#          alpha=0.3, fc='y', ec='None')
+# =============================================================================
+#plt.axis([x[0],x[-1],11.3,14.7])
+plt.xlabel('$P_{ch}$(dBm)')  
+plt.ylabel('SNR(dB)')
+plt.legend(loc="lower right",ncol=3)
+plt.savefig('Zsigmafitincorrect.pdf', dpi=200,bbox_inches='tight')
+plt.show()
+
+
 # %%
 def BERcalc(M, SNR): # linear SNR here is energy per symbol - need to convert to energy per bit to use these formulae - hence the division by log2(M)
         if M == 2: 
@@ -720,17 +917,19 @@ def fmrta(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens,
         print("Normal availability = " + str(ava) + "%") 
         print("Normal total traversal time = " + str('%.2f' % tottime) + "s")
         print("Normal number of failures = " + str(failures))
-    return ava, estlam, reqlams, tottime, conten,ct128, ct64, ct16, ct4,ct2, failures, noreach, Um
+    return ava, estlam, reqlams, conten,ct128, ct64, ct16, ct4,ct2, failures, noreach, Um
+
 
 # =============================================================================
-testsrc = []
-testdes = []
-for _ in range(800):
-    rsctest, rdstest = requestgen(graphA)
-    testsrc.append(rsctest)
-    testdes.append(rdstest)   
-test1, test2, test3, test4, test5, test6, test7, test8, test9, test10, test11, test12, test13 = fmrta(graphA, edgesA, testsrc, testdes, False, 2.0,nodesA,numedgesA,edgelensA,fmSNR, LspansA)
+# testsrc = []
+# testdes = []
+# for _ in range(800):
+#     rsctest, rdstest = requestgen(graphA)
+#     testsrc.append(rsctest)
+#     testdes.append(rdstest)   
+# test1, test2, test3, test4, test5, test6, test7, test8, test9, test10, test11, test12, test13 = fmrta(graphA, edgesA, testsrc, testdes, False, 2.0,nodesA,numedgesA,edgelensA,fmSNR, LspansA)
 # =============================================================================
+
 
 # %%
 def removekey(d, keysrc, keydes):
@@ -1379,10 +1578,10 @@ def testrout(graph, graphvar, edges, numtests,showres,numsig, numreq):
     
     return avaavef2, wavconavef2, failavef2 ,ttavef2, thrptf2, Umnf2, avaavef3, wavconavef3, failavef3 ,ttavef3, thrptf3, Umnf3, avaavevp, wavconavevp, failavevp ,ttavevp, thrptvp, Umnvp,  avaavef, wavconavef, failavef ,ttavef, thrptf, norchavef, Umnf 
 
-reqvar = True
+reqvar = False
 if reqvar:
     numreq = np.linspace(150,500,21,dtype=int)
-    numsig = 2.0
+    numsig = 5.0
     nrs = np.size(numreq)
     avaavef2 = np.empty([nrs,1])
     wavconavef2 = np.empty([nrs,1])
@@ -1510,7 +1709,7 @@ if reqvar:
     plt.plot(numreq, totthrptf3, label="FM 2dB")
     plt.legend()
     plt.xlabel("No. of requests")
-    plt.ylabel("Total throughput (Gb/s)")
+    plt.ylabel("Average throughput (Gb/s)")
     plt.savefig('zTotalthrptvsnreq.pdf', dpi=200,bbox_inches='tight')
     plt.show() 
     
@@ -1577,7 +1776,7 @@ else:
     plt.plot(numsig, totthrptf3, label="FM 2dB")
     plt.legend()
     plt.xlabel("$\sigma$")
-    plt.ylabel("Total throughput (Gb/s)")
+    plt.ylabel("Average throughput (Gb/s)")
     plt.savefig('zTotalthrptvsnsig.pdf', dpi=200,bbox_inches='tight')
     plt.show() 
     
