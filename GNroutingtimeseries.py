@@ -16,12 +16,14 @@ from GNf import GNmain
 import random
 from dijkstra import dijkstra
 import matplotlib
-
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
+from sklearn.preprocessing import StandardScaler
 
 datagen = False
-
+GPtraining = False
 numpoints = 100
-NF = 4.5
+
 PchdBm = np.linspace(-10, 10, num = numpoints, dtype =float) 
 alpha = 0.2
 NLco = 1.27
@@ -130,7 +132,7 @@ PchdBm = np.linspace(-10,10,numpoints)
 #ripplepertmin = -0.1
 numlam = 20 # initial expected number of wavelengths 
 
-def fmsnrtest(edgelen, Lspans, numlam, NF, alpha):
+def marginsnrtest(edgelen, Lspans, numlam, NF, alpha):
     Ls = Lspans
     NchNy = numlam
     D = Disp
@@ -159,52 +161,68 @@ def fmsnrtest(edgelen, Lspans, numlam, NF, alpha):
     snr = (  (Pch/(Pase + Gnli*Rs*1e9))**(-1) + db2lin(26)**(-1)  )**(-1)
     return lin2db(snr) 
 def fmdatagentest(edgelens,Lspans, numlam, NF, alpha):
-    fmSNR = np.empty([np.size(edgelens),1])
+    marginSNR = np.empty([np.size(edgelens),1])
     for i in range(np.size(edgelens)):
-        fmSNR[i] = fmsnrtest(edgelens[i],Lspans, numlam, NF, alpha)
-    return fmSNR
+        marginSNR[i] = marginsnrtest(edgelens[i],Lspans, numlam, NF, alpha)
+    return marginSNR
 
-testlen = 4800.0
+# =============================================================================
+# testlen = 4800.0
 years = np.linspace(0,10,21)
 numlam = np.linspace(30, 150, np.size(years))
 NF = np.linspace(4.5,5.5,np.size(years))
 alpha = 0.2 + 0.00163669*years
-
-testsnrnli = np.empty([np.size(years),1])
-nliampmargin = np.empty([np.size(years),1])
-testsnrjustfibre = np.empty([np.size(years),1])
-
-for i in range(np.size(years)):
-    #testsnrnli[i] = fmdatagentest(edgelensA[testi], LspansA, numlam[i], NF[i])
-    testsnrnli[i] = fmsnrtest(testlen, 100, numlam[i], NF[i], alpha[i])
-    nliampmargin[i] = testsnrnli[0] - testsnrnli[i]
-    
 trxaging = ((1 + 0.05*years)*2).reshape(np.size(years),1)
 oxcaging = ((0.03 + 0.007*years)*2).reshape(np.size(years),1)
-testsnrnli = testsnrnli -  1.03*np.ones([np.size(years),1])
-testfinalsnr = ( testsnrnli - (trxaging + oxcaging)) 
+# 
+# testsnrnli = np.empty([np.size(years),1])
+# nliampmargin = np.empty([np.size(years),1])
+# testsnrjustfibre = np.empty([np.size(years),1])
+# 
+# for i in range(np.size(years)):
+#     #testsnrnli[i] = fmdatagentest(edgelensA[testi], LspansA, numlam[i], NF[i])
+#     testsnrnli[i] = marginsnrtest(testlen, LspansA, numlam[i], NF[i], alpha[i])
+#     nliampmargin[i] = testsnrnli[0] - testsnrnli[i]
+#     
 
-plt.plot(years, nliampmargin, label = 'NLI + NF + FA')
-plt.plot(years, trxaging, label = 'TRx aging')
-plt.plot(years, oxcaging, label = 'node filter aging')
-plt.legend()
-plt.xlabel("years")
-plt.ylabel("margin (dB)")
-plt.savefig('marginvaryearsFA.pdf', dpi=200,bbox_inches='tight')
-plt.show()
+# testsnrnli = testsnrnli -  1.03*np.ones([np.size(years),1])
+# testfinalsnr = ( testsnrnli - (trxaging + oxcaging)) 
+# 
+# plt.plot(years, nliampmargin, label = 'NLI + NF + FA')
+# plt.plot(years, trxaging, label = 'TRx aging')
+# plt.plot(years, oxcaging, label = 'node filter aging')
+# plt.legend()
+# plt.xlabel("years")
+# plt.ylabel("margin (dB)")
+# plt.savefig('marginvaryearsFA.pdf', dpi=200,bbox_inches='tight')
+# plt.show()
+# 
+# plt.plot(years, testsnrnli, label = 'SNR with NF, NLI + FA')
+# plt.plot(years, testfinalsnr, label = 'SNR - TRx + filtering')
+# plt.xlabel("years")
+# plt.ylabel("SNR (dB)")
+# plt.legend()
+# plt.savefig('marginvarsnr.pdf', dpi=200,bbox_inches='tight')
+# plt.show()
+# =============================================================================
 
-plt.plot(years, testsnrnli, label = 'SNR with NF, NLI + FA')
-plt.plot(years, testfinalsnr, label = 'SNR - TRx + filtering')
-plt.xlabel("years")
-plt.ylabel("SNR (dB)")
-plt.legend()
-plt.savefig('marginvarsnr.pdf', dpi=200,bbox_inches='tight')
-plt.show()
+# %% find the worst-case margin required
+
+#snrmar = fmdatagentest(edgelensA, LspansA, numlam[-1], NF[-1], alpha[-1])
+#snrpl =  fmdatagentest(edgelensA, LspansA, numlam[0], NF[0], alpha[0])
+
+#fmS = snrpl - snrmar + trxaging[-1] + oxcaging[-1]  # fixed worst-case S margin
+fmD = np.empty([numedgesA,1])
+for i in range(numedgesA):
+    fmD[i] = 0.08*(edgelensA[i]/1000.0)*5
+fmT = trxaging[-1] + oxcaging[-1] + fmD
+
+
 
 # %%
 numyears = np.size(years)
 #sd = 0.04
-sd = np.linspace(0.04, 0.1, np.size(years))
+sd = np.linspace(0.04, 0.08, np.size(years))
 numlam = np.linspace(30, 150, np.size(years))
 NF = np.linspace(4.5,5.5,np.size(years))
 TRxb2b = 26  # TRx B2B SNR 
@@ -235,8 +253,9 @@ if datagen:
         Pch = 1e-3*10**(Popt/10) 
         snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
         snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
-        snr = snr + np.random.normal(0,db2lin(sd),numpoints)
-        return lin2db(snr), Popt 
+        #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
+        sdnorm = sd*(edgelen/1000.0)
+        return lin2db(snr) + np.random.normal(0,sdnorm,numpoints), Popt 
             #return lin2db( ( ((Pch)/(Pase*np.ones(numpoints) + Gnli*Rs*1e9)  )**(-1)  +  np.random.normal(db2lin(26), db2lin(TRxsd), numpoints)**(-1) )**(-1) ) , Popt, Poptind
         
     def savedatgauss(edgelens, numedges,Lspans, yearind):    
@@ -282,7 +301,7 @@ if datagen == False:
 
 # %%
 x = np.linspace(0,numpoints-1,numpoints)
-plt.plot(x,linkSNR[0][0],'+')
+plt.plot(x,linkSNR[-1][0],'+')
 plt.show()
 
 
@@ -292,201 +311,125 @@ plt.ylabel("Popt (dBm)")
 plt.savefig('yearspopt.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
+# %%
+
+def GPtrain(x,y):
+    y = y.reshape(-1,1)
+    x = x.reshape(-1,1)
+    scaler = StandardScaler().fit(y)
+    y = scaler.transform(y)
+    #kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-3, 1e3)) + W(1.0, (1e-5, 1e5))
+    kernel = C(0.03, (1e-3, 1e1)) * RBF(0.01, (1e-2, 1e2)) 
+    #print("Initial kernel: %s" % kernel)
+    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer = 20, normalize_y=False, alpha=np.var(y))
+    #gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer = 9, normalize_y=False)
+    gpr.fit(x, y)
+    #print("Optimised kernel: %s" % gpr.kernel_)
+    #print("SKLearn fitting took " + str(end - start) + "s")
+    #hyperparameter = np.exp(gpr.kernel_.theta)
+    #alpha = hyperparameter[0]**0.5 # k1
+    #rho = hyperparameter[1]**0.5 # k2
+    #sigmakernel = hyperparameter[2]**0.5
+    ystar, sigma = gpr.predict(x, return_std=True )
+    sigma = np.reshape(sigma,(np.size(sigma), 1)) 
+    sigma = (sigma**2 + 1)**0.5  
+    
+    ystarp = ystar + sigma
+    ystari = scaler.inverse_transform(ystar)
+    ystarpi = scaler.inverse_transform(ystarp)
+    sigmai = np.mean(ystarpi - ystari)
+    
+    return ystari, sigmai
+
+if GPtraining:
+    x = np.linspace(0,numpoints-1,numpoints)
+    prmn = np.empty([numyears,numedgesA,1])
+    sigma = np.empty([numyears,numedgesA,1])
+    for i in range(numyears):
+        y = linkSNR[i]
+        prmnt = np.empty([np.size(y,0),np.size(y,1)])
+        sigmat = np.empty([np.size(y,0),1])
+            
+        start = time.time()
+        for j in range(numedgesA):
+            #print("link " + str(j))
+            prmns, sigmat[j] = GPtrain(x,y[j])
+            prmnt[j] = prmns.reshape(numpoints)
+        end = time.time()
+            
+        print("GP training took " + str(end-start))   
+        if graphA == graphN:   
+            np.savetxt('prmntsN' + str(i) + '.csv', prmnt, delimiter=',') 
+            np.savetxt('sigtsN' + str(i) + '.csv', sigmat, delimiter=',')
+        elif graphA == graphD:
+            np.savetxt('prmntsD' + str(i) + '.csv', prmnt, delimiter=',') 
+            np.savetxt('sigtsD' + str(i) + '.csv', sigmat, delimiter=',')
+        elif graphA == graphAL:
+            np.savetxt('prmntsAL' + str(i) + '.csv', prmnt, delimiter=',') 
+            np.savetxt('sigtsAL' + str(i) + '.csv', sigmat, delimiter=',')
+        prmn[i] = prmnt
+        sigma[i] = sigmat
+
+
 # %% import trained GP models
-   
-if graphA == graphN:
-    prmn = np.genfromtxt(open("prmn.csv", "r"), delimiter=",", dtype =float)
-    prmnp = np.genfromtxt(open("prmnp.csv", "r"), delimiter=",", dtype =float)
-    #sigmaold = np.genfromtxt(open("sig.csv", "r"), delimiter=",", dtype =float)
-    #sigrf = np.genfromtxt(open("sigrf.csv", "r"), delimiter=",", dtype =float)
-elif graphA == graphD:
-    prmn = np.genfromtxt(open("prmnD.csv", "r"), delimiter=",", dtype =float)
-    prmnp = np.genfromtxt(open("prmnpD.csv", "r"), delimiter=",", dtype =float)
-    #sigmaold = np.genfromtxt(open("sigD.csv", "r"), delimiter=",", dtype =float)
-    #sigma = np.genfromtxt(open("sigD.csv", "r"), delimiter=",", dtype =float)
-    #sigrf = np.genfromtxt(open("sigrfD.csv", "r"), delimiter=",", dtype =float)
-elif graphA == graphAL:
-    prmn = np.genfromtxt(open("prmnAL.csv", "r"), delimiter=",", dtype =float)
-    prmnp = np.genfromtxt(open("prmnpAL.csv", "r"), delimiter=",", dtype =float)
-        #sigmaold = np.genfromtxt(open("sigAL.csv", "r"), delimiter=",", dtype =float)
-        #sigrf = np.genfromtxt(open("sigrfAL.csv", "r"), delimiter=",", dtype =float)
+if GPtraining == False:  
+    #prmn = np.empty([numyears,numedgesA,numpoints])
+    sigma =  np.empty([numyears,numedgesA])
+    prmn = np.empty([numyears,numedgesA])
+    for i in range(numyears):
+        if graphA == graphN:
+            prmnt = np.genfromtxt(open('prmntsN' + str(i) + '.csv', "r"), delimiter=",", dtype =float)
+            sigmat = np.genfromtxt(open('sigtsN' + str(i) + '.csv', "r"), delimiter=",", dtype =float)
+        elif graphA == graphD:
+            prmnt = np.genfromtxt(open('prmntsD' + str(i) + '.csv', "r"), delimiter=",", dtype =float)
+            sigmat = np.genfromtxt(open('sigtsD' + str(i) + '.csv', "r"), delimiter=",", dtype =float)
+        elif graphA == graphAL:
+            prmnt = np.genfromtxt(open('prmntsAL' + str(i) + '.csv', "r"), delimiter=",", dtype =float)
+            sigmat = np.genfromtxt(open('sigtsAL' + str(i) + '.csv', "r"), delimiter=",", dtype =float)
+        for j in range(numedgesA):
+            prmn[i][j] = np.mean(prmnt[j])
+            
+        #prmn[i] = prmnt
+        sigma[i] = sigmat #.reshape(numedgesA,1) 
+# %% 
 
+def fmsnr(edgelen, Lspans, numlam, NF, alpha, yearind):
+        Ls = Lspans
+        NchNy = numlam
+        D = Disp
+        gam = NLco
+        lam = 1550 # operating wavelength centre [nm]
+        f = 299792458/(lam*1e-9) # operating frequency [Hz]
+        c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
+        Rs = 32 # symbol rate [GBaud]
+        h = 6.63*1e-34  # Planck's constant [Js]
+        #BWNy = (NchNy*Rs)/1e3 
+        BWNy = (157*Rs)/1e3 # full 5THz BW
+        allin = np.log((10**(alpha/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
+        beta2 = (D*(lam**2))/(2*np.pi*c) # dispersion coefficient at given wavelength [ps^2/km]
+        Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
+        Leffa = 1/(2*allin)  # the asymptotic effective length [km]  
+        numspans = int(edgelen/Lspans)
+        Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] 
+        Popt = PchdBm[np.argmax(Pun)]                                                   
+        Gwdm = (1e-3*10**(Popt/10)*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
+        Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
+        Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
+        Pch = 1e-3*10**(Popt/10) 
+        #snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
+        snr = (Pch/(Pase + Gnli*Rs*1e9))
+        snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
+        return lin2db(snr) 
     
-sigma = (prmnp - prmn)/2
-# =============================================================================
-# =============================================================================
-# test = sigmaold - sigma 
-# plt.plot(sigmaold[0], label = "$\sigma_o$")
-# plt.plot(test[0], label = "$\sigma_o$ - $\sigma_n$")
-# plt.plot(sigma[0], label = "$\sigma_n$")
-# plt.xlabel("$\mathrm{P_{ch}}$ index")
-# plt.legend(ncol = 3)
-# plt.savefig('diffsigma.pdf', dpi=200,bbox_inches='tight')
-# plt.show()
-# =============================================================================
-# %% =============================================================================
-# find optimum from the predictive mean
-def vargraphcalcs(prmn,sigma,edgelens):
-    prmnopt = [np.argmax(prmn[i]) for i in range(np.size(prmn,0))]
-    gsige = [sigma[i][prmnopt[i]] for i in range(np.size(prmn,0))]  # use predictive mean to get optimum Pch
-    gwte = [edgelens[i]*gsige[i] for i in range(np.size(prmn,0))]
-    gsig = [sigma[i][linkPoptind] for i in range(np.size(sigma,0))]
-    gwt = [edgelens[i]*gsig[i] for i in range(np.size(sigma,0))]  # use maximum of GN model to get optimum Pch (LOGON)
-    return prmnopt, gsige, gwte, gsig, gwt
-prmnopt, gsige, gwte, gsig, gwt = vargraphcalcs(prmn, sigma, edgelensA)
-if graphA == graphN:
-    graphvar = {'1':{'2':gwt[0][0],'3':gwt[1][0],'8':gwt[2][0]},'2':{'1':gwt[3][0],'3':gwt[4][0],'4':gwt[5][0]},'3':{'1':gwt[6][0],'2':gwt[7][0],'6':gwt[8][0]},    
-                 '4':{'2':gwt[9][0],'5':gwt[10][0],'11':gwt[11][0]},'5':{'4':gwt[12][0],'6':gwt[13][0],'7':gwt[14][0]}, '6':{'3':gwt[15][0],'5':gwt[16][0],'10':gwt[17][0],'14':gwt[18][0]},
-                 '7':{'5':gwt[19][0],'8':gwt[20][0],'10':gwt[21][0]}, '8':{'1':gwt[22][0],'7':gwt[23][0],'9':gwt[24][0]}, '9':{'8':gwt[25][0],'10':gwt[26][0],'12':gwt[27][0],'13':gwt[28][0]},
-                 '10':{'6':gwt[29][0],'7':gwt[30][0],'9':gwt[31][0]}, '11':{'4':gwt[32][0],'12':gwt[33][0],'13':gwt[34][0]}, '12':{'9':gwt[35][0],'11':gwt[36][0],'14':gwt[37][0]},
-                 '13':{'9':gwt[38][0],'11':gwt[39][0],'14':gwt[40][0]}, '14':{'6':gwt[41][0],'12':gwt[42][0],'13':gwt[43][0]}
-                 }        
-    graphvared = {'1':{'2':gwte[0][0],'3':gwte[1][0],'8':gwte[2][0]},'2':{'1':gwte[3][0],'3':gwte[4][0],'4':gwte[5][0]},'3':{'1':gwte[6][0],'2':gwte[7][0],'6':gwte[8][0]},    
-                 '4':{'2':gwte[9][0],'5':gwte[10][0],'11':gwte[11][0]},'5':{'4':gwte[12][0],'6':gwte[13][0],'7':gwte[14][0]}, '6':{'3':gwte[15][0],'5':gwte[16][0],'10':gwte[17][0],'14':gwte[18][0]},
-                 '7':{'5':gwte[19][0],'8':gwte[20][0],'10':gwte[21][0]}, '8':{'1':gwte[22][0],'7':gwte[23][0],'9':gwte[24][0]}, '9':{'8':gwte[25][0],'10':gwte[26][0],'12':gwte[27][0],'13':gwte[28][0]},
-                 '10':{'6':gwte[29][0],'7':gwte[30][0],'9':gwte[31][0]}, '11':{'4':gwte[32][0],'12':gwt[33][0],'13':gwt[34][0]}, '12':{'9':gwte[35][0],'11':gwte[36][0],'14':gwte[37][0]},
-                 '13':{'9':gwte[38][0],'11':gwte[39][0],'14':gwte[40][0]}, '14':{'6':gwte[41][0],'12':gwte[42][0],'13':gwte[43][0]}
-                 } 
-elif graphA == graphD:
-    graphvar = {'1':{'2':gwt[0][0],'3':gwt[1][0],'4':gwt[2][0]},'2':{'1':gwt[3][0],'4':gwt[4][0],'5':gwt[5][0]},'3':{'1':gwt[6][0],'4':gwt[7][0],'6':gwt[8][0]},    
-         '4':{'1':gwt[9][0],'2':gwt[10][0],'3':gwt[11][0],'5':gwt[12][0],'7':gwt[13][0],'10':gwt[14][0]},'5':{'2':gwt[15][0],'4':gwt[16][0],'10':gwt[17][0],'11':gwt[18][0]}, '6':{'3':gwt[19][0],'7':gwt[20][0],'8':gwt[21][0]},
-         '7':{'4':gwt[22][0],'6':gwt[23][0],'9':gwt[24][0]}, '8':{'6':gwt[25][0],'9':gwt[26][0]}, '9':{'7':gwt[27][0],'8':gwt[28][0],'10':gwt[29][0]},
-         '10':{'4':gwt[30][0],'5':gwt[31][0],'9':gwt[32][0],'11':gwt[33][0],'12':gwt[34][0]}, '11':{'5':gwt[35][0],'10':gwt[36][0],'12':gwt[37][0],'14':gwt[38][0]}, '12':{'10':gwt[39][0],'11':gwt[40][0],'13':gwt[41][0]},
-         '13':{'12':gwt[42][0],'14':gwt[43][0]}, '14':{'11':gwt[44][0],'13':gwt[45][0]}
-         } 
-    graphvared = {'1':{'2':gwte[0][0],'3':gwte[1][0],'4':gwte[2][0]},'2':{'1':gwte[3][0],'4':gwte[4][0],'5':gwte[5][0]},'3':{'1':gwte[6][0],'4':gwte[7][0],'6':gwte[8][0]},    
-         '4':{'1':gwte[9][0],'2':gwte[10][0],'3':gwte[11][0],'5':gwte[12][0],'7':gwte[13][0],'10':gwte[14][0]},'5':{'2':gwte[15][0],'4':gwte[16][0],'10':gwte[17][0],'11':gwte[18][0]}, '6':{'3':gwte[19][0],'7':gwte[20][0],'8':gwte[21][0]},
-         '7':{'4':gwte[22][0],'6':gwte[23][0],'9':gwte[24][0]}, '8':{'6':gwte[25][0],'9':gwte[26][0]}, '9':{'7':gwte[27][0],'8':gwte[28][0],'10':gwte[29][0]},
-         '10':{'4':gwte[30][0],'5':gwte[31][0],'9':gwte[32][0],'11':gwte[33][0],'12':gwte[34][0]}, '11':{'5':gwte[35][0],'10':gwte[36][0],'12':gwte[37][0],'14':gwte[38][0]}, '12':{'10':gwte[39][0],'11':gwte[40][0],'13':gwte[41][0]},
-         '13':{'12':gwte[42][0],'14':gwte[43][0]}, '14':{'11':gwte[44][0],'13':gwte[45][0]}
-         } 
-    
-elif graphA == graphAL:
-    graphvar = {'1':{'4':gwt[0][0],'5':gwt[1][0]},'2':{'3':gwt[2][0],'7':gwt[3][0]},'3':{'2':gwt[4][0],'8':gwt[5][0]},    
-         '4':{'1':gwt[6][0],'5':gwt[7][0],'9':gwt[8][0]},'5':{'1':gwt[9][0],'4':gwt[10][0],'6':gwt[11][0]}, '6':{'5':gwt[12][0],'7':gwt[13][0],'11':gwt[14][0]},
-         '7':{'2':gwt[15][0],'6':gwt[16][0],'10':gwt[17][0]}, '8':{'3':gwt[18][0],'10':gwt[19][0]}, '9':{'4':gwt[20][0],'11':gwt[21][0]},
-         '10':{'7':gwt[22][0],'8':gwt[23][0],'11':gwt[24][0]}, '11':{'6':gwt[25][0],'9':gwt[26][0],'10':gwt[27][0]}
-         } 
-    graphvared = {'1':{'4':gwte[0][0],'5':gwte[1][0]},'2':{'3':gwte[2][0],'7':gwte[3][0]},'3':{'2':gwte[4][0],'8':gwte[5][0]},    
-         '4':{'1':gwte[6][0],'5':gwte[7][0],'9':gwte[8][0]},'5':{'1':gwte[9][0],'4':gwte[10][0],'6':gwte[11][0]}, '6':{'5':gwte[12][0],'7':gwte[13][0],'11':gwte[14][0]},
-         '7':{'2':gwte[15][0],'6':gwte[16][0],'10':gwte[17][0]}, '8':{'3':gwte[18][0],'10':gwte[19][0]}, '9':{'4':gwte[20][0],'11':gwte[21][0]},
-         '10':{'7':gwte[22][0],'8':gwte[23][0],'11':gwte[24][0]}, '11':{'6':gwte[25][0],'9':gwte[26][0],'10':gwte[27][0]}
-         } 
-
-def fmsnr(edgelen, Lspans):
-    Ls = Lspans
-    NchNy = numlam
-    D = Disp
-    gam = NLco
-    lam = 1550 # operating wavelength centre [nm]
-    f = 299792458/(lam*1e-9) # operating frequency [Hz]
-    c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
-    Rs = 32 # symbol rate [GBaud]
-    h = 6.63*1e-34  # Planck's constant [Js]
-    BWNy = (NchNy*Rs)/1e3 # full BW of Nyquist signal [THz
-    allin = np.log((10**(alpha/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
-    #gam = 1.27 # fibre nonlinearity coefficient [1/W*km]
-    beta2 = (D*(lam**2))/(2*np.pi*c) # dispersion coefficient at given wavelength [ps^2/km]
-    Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
-    Leffa = 1/(2*allin)  # the asymptotic effective length [km]  
-    #ripplepert = 0.1
-    #ripplepert = np.random.uniform(0.1,0.2,numspans+1)
-    numspans = int(edgelen/Lspans)
-    Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] 
-    Popt = PchdBm[np.argmax(Pun)]                                                   
-    Gwdm = (1e-3*10**(Popt/10)*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
-    Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
-    Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
-    Pch = 1e-3*10**(Popt/10) 
-    return lin2db((Pch)/(Pase + Gnli*Rs*1e9)) 
-def fmdatagen(edgelens,Lspans):
+def fmdatagen(edgelens,Lspans, yearind):
     fmSNR = np.empty([np.size(edgelens),1])
     for i in range(np.size(edgelens)):
-        fmSNR[i] = fmsnr(edgelens[i],Lspans)
+        fmSNR[i] = fmsnr(edgelens[i],Lspans, numlam[yearind], NF[yearind], alpha[yearind], yearind)
     return fmSNR
 
-fmSNR = fmdatagen(edgelensA,LspansA)
-
-
-
-
-# %%
-def plaingn(edgelen,Lspans):
-        lam = 1550
-        Rs = 32
-        f = 299792458/(lam*1e-9) # operating frequency [Hz]
-        h = 6.63*1e-34  # Planck's constant [Js] 
-        Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] # }
-        Popt = PchdBm[np.argmax(Pun)]                                                   # }could do this outside of function
-        Poptind = int(np.argmax(Pun))                                                   # }
-        Poptr = np.linspace(Popt-1.5, Popt+1.5, numpoints)
-        numspans = int(edgelen/Lspans)
-        #ripplepert = np.random.uniform(0.1,0.2,numspans+1)
-        #ripplepert = 0.2*np.ones(numspans+1)  # fixed perturbation due to EDFA power-excursions of 0.2dB
-        Poptran = Poptr # +  np.random.uniform(-ripplepert[0], ripplepert[0], numpoints)
-        if numspans == 1: # deal with case of one span link (occurs in DTAG)
-            Poptfinal = Poptran
-        Gnli = np.empty([numspans,numpoints])
-        for i in range(numspans):
-            Gnli[i] = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, Poptran, NF, NLco,False,numpoints)[4]
-            #ripplepert = np.random.uniform(0.1,0.2)
-            #Poptran = Poptran + np.random.uniform(-ripplepert[i+1], ripplepert[i+1], numpoints)
-            if i == numspans-2:
-                    Poptfinal = Poptran  # select the power that was put into the last span to calculate SNR
-        Gnli = np.sum(Gnli,axis=0)
-        Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
-        Pch = 1e-3*10**(Poptfinal/10) 
-        return lin2db((Pch)/(Pase*np.ones(numpoints) + Gnli*Rs*1e9))
-# %%
-tind = 0
-nnsnr = plaingn(edgelensA[tind],LspansA)
-
-plt.plot(linkPch, linkSNR[tind], '+', label = 'GN + noise')
-plt.plot(linkPch, nnsnr, label = 'GN')
-plt.xlabel("$\mathrm{P_{ch}}$ (dBm)")
-plt.ylabel("SNR (dB)")
-plt.legend()
-plt.savefig('demosnrvspch1100.pdf', dpi=200,bbox_inches='tight')
-plt.show()
-
-prmnp2 = prmn[tind] + 2*sigma[tind]
-prmnm2 = prmn[tind] - 2*sigma[tind]
-prmnp3 = prmn[tind] + 3*sigma[tind]
-prmnm3 = prmn[tind] - 3*sigma[tind]
-prmnp4 = prmn[tind] + 4*sigma[tind]
-prmnm4 = prmn[tind] - 4*sigma[tind]
-
-plt.plot(linkPch, linkSNR[tind],'+')
-plt.plot(linkPch, prmn[tind], label = 'GP')
-plt.fill(np.concatenate([linkPch, linkPch[::-1]]),
-         np.concatenate([prmnp2,
-                         (prmnm2)[::-1]]),
-         alpha=0.3, fc='b', ec='None', label='$2 \sigma$')
-# =============================================================================
-# plt.fill(np.concatenate([linkPch, linkPch[::-1]]),
-#          np.concatenate([prmnp3,
-#                          (prmnp2)[::-1]]),
-#          alpha=0.3, fc='r', ec='None', label='$3 \sigma$')
-# plt.fill(np.concatenate([linkPch, linkPch[::-1]]),
-#          np.concatenate([prmnm2,
-#                          (prmnm3)[::-1]]),
-#          alpha=0.3, fc='r', ec='None')
-# plt.fill(np.concatenate([linkPch, linkPch[::-1]]),
-#          np.concatenate([prmnp4,
-#                          (prmnp3)[::-1]]),
-#          alpha=0.3, fc='y', ec='None', label='$4 \sigma$')
-# plt.fill(np.concatenate([linkPch, linkPch[::-1]]),
-#          np.concatenate([prmnm3,
-#                          (prmnm4)[::-1]]),
-#          alpha=0.3, fc='y', ec='None')
-# =============================================================================
-#plt.axis([x[0],x[-1],11.3,14.7])
-plt.xlabel('$P_{ch}$(dBm)')  
-plt.ylabel('SNR(dB)')
-plt.legend(loc="lower right",ncol=3)
-plt.savefig('Zsigmafitincorrect.pdf', dpi=200,bbox_inches='tight')
-plt.show()
-
+fmSNR = np.empty([numyears, numedgesA, 1])
+for i in range(numyears):
+    fmSNR[i] = fmdatagen(edgelensA,LspansA,i)
 
 # %%
 def BERcalc(M, SNR): # linear SNR here is energy per symbol - need to convert to energy per bit to use these formulae - hence the division by log2(M)
@@ -519,43 +462,9 @@ def requestgen(graph):
                 des = random.choice(list(graph.keys()))
             return src, des
 
-def SNRnew(edgelen, ripplepert, Popt, Lspans, numlam):
-        Ls = Lspans
-        NchNy = numlam
-        D = Disp
-        gam = NLco
-        lam = 1550 # operating wavelength centre [nm]
-        f = 299792458/(lam*1e-9) # operating frequency [Hz]
-        c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
-        Rs = 32 # symbol rate [GBaud]
-        h = 6.63*1e-34  # Planck's constant [Js]
-        BWNy = (NchNy*Rs)/1e3 # full BW of Nyquist signal [THz
-        allin = np.log((10**(alpha/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
-        #gam = 1.27 # fibre nonlinearity coefficient [1/W*km]
-        beta2 = (D*(lam**2))/(2*np.pi*c) # dispersion coefficient at given wavelength [ps^2/km]
-        Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
-        Leffa = 1/(2*allin)  # the asymptotic effective length [km]  
-        #ripplepert = 0.1
-        #ripplepert = np.random.uniform(0.1,0.2,numspans+1)
-        numspans = int(edgelen/Lspans)
-        Poptran = Popt  +  np.random.uniform(-ripplepert[0], ripplepert[0])
-        if numspans == 1:
-            Poptfinal = Poptran
-        Gnli = np.empty([numspans,1])
-        for i in range(numspans):
-            Gwdm = (1e-3*10**(Poptran/10)*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
-            Gnli[i] = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))
-            #ripplepert = np.random.uniform(0.1,0.2)
-            Poptran = Poptran + np.random.uniform(-ripplepert[i+1], ripplepert[i+1])
-            if i == numspans-2:
-                    Poptfinal = Poptran  # select the power that was put into the last span to calculate SNR
-        Gnli = np.sum(Gnli,axis=0)
-        Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
-        Pch = 1e-3*10**(Poptfinal/10) 
-        return lin2db((Pch)/(Pase + Gnli*Rs*1e9))
 
-def SNRnewhet(edgelen, Popt, Lspans, numlam, sd):
-        Ls = Lspans
+def SNRnew(edgelen,numlam, yearind):
+        Ls = LspansA
         NchNy = numlam
         D = Disp
         gam = NLco
@@ -564,38 +473,38 @@ def SNRnewhet(edgelen, Popt, Lspans, numlam, sd):
         c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
         Rs = 32 # symbol rate [GBaud]
         h = 6.63*1e-34  # Planck's constant [Js]
-        BWNy = (NchNy*Rs)/1e3 # full BW of Nyquist signal [THz
-        allin = np.log((10**(alpha/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
+        #BWNy = (NchNy*Rs)/1e3 
+        BWNy = (157*Rs)/1e3 # full 5THz BW
+        allin = np.log((10**(alpha[yearind]/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
         beta2 = (D*(lam**2))/(2*np.pi*c) # dispersion coefficient at given wavelength [ps^2/km]
         Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
         Leffa = 1/(2*allin)  # the asymptotic effective length [km]  
-        numspans = int(edgelen/Lspans)
-        Poptran = Popt  +  np.random.normal(0, sd, 1)
-        if numspans == 1:
-            Poptfinal = Poptran
-        Gnli = np.empty([numspans,1])
-        for i in range(numspans):
-            Gwdm = (1e-3*10**(Poptran/10)*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
-            Gnli[i] = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))
-            #ripplepert = np.random.uniform(0.1,0.2)
-            Poptran = Poptran +  np.random.normal(0, sd, 1)
-            if i == numspans-2:
-                    Poptfinal = Poptran  # select the power that was put into the last span to calculate SNR
-        Gnli = np.sum(Gnli,axis=0)
-        Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
-        Pch = 1e-3*10**(Poptfinal/10) 
-        return lin2db((Pch)/(Pase + Gnli*Rs*1e9))
+        numspans = int(edgelen/Ls)
+        Pun = GNmain(Ls, 1, numlam, 101, 201, alpha[yearind], Disp, PchdBm, NF[yearind], NLco,False,numpoints)[0] 
+        Popt = PchdBm[np.argmax(Pun)]                                                   
+        Gwdm = (1e-3*10**(Popt/10)*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
+        Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
+        Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*numspans
+        Pch = 1e-3*10**(Popt/10) 
+        snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
+        snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
+        #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
+        sdnorm = sd[yearind]*(edgelen/1000.0)
+        return lin2db(snr) + np.random.normal(0,sdnorm,1)
+
+test = SNRnew(edgelensA[0],40,0)
 
 FT2 = 0.24
 FT4 = 3.25 # all correspond to BER of 2e-2
 FT16 = 12.72
 FT64 = 18.43
 FT128 = 22.35
-       
-# %% fixed margin routing algorithm 
-# margin = 6.3 # BoL
 
-def fmrta(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens,fmSNR, Lspans):
+     
+# %% fixed margin routing algorithm 
+
+
+def fmrta(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, Lspans, yearind):
     dis = []
     path = []
     numnodes = np.size(nodes)
@@ -646,7 +555,7 @@ def fmrta(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens,
         pathdists.append(getlinklen(path[i],graphnormA,edges)[0])
         links.append(getlinklen(path[i],graph,edges)[1])
     
-    estlam = np.zeros([numedges,numlam]) # 0 for empty, 1 for occupied
+    estlam = np.zeros([numedges,int(numlam[-1])]) # 0 for empty, 1 for occupied
     reqlams = 0
     conten = 0
     failures = 0 # post-reach determination failures
@@ -687,28 +596,28 @@ def fmrta(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens,
         # need to check SNR for all the edges in the path
         edgesuc = 0
         edgesuc2 = 0
-        FT = np.zeros(np.size(linkSNR[randedges],0))
+        FT = np.zeros(np.size(linkSNR[0][randedges],0))
         #print(np.size(linkSNR[randedges],0))
         #print(np.size(randedges))
-        for j in range(np.size(linkSNR[randedges],0)):
+        for j in range(np.size(linkSNR[0][randedges],0)):
             
-            if fmSNR[randedges][j] - margin > FT128:
+            if fmSNR[-1][randedges][j] - fmT[randedges][j] > FT128:
                 FT[j] = FT128
                 ct128 = ct128 + 1
                 edgesuc = edgesuc + 1
-            elif fmSNR[randedges][j] - margin > FT64:
+            elif fmSNR[-1][randedges][j] - fmT[randedges][j] > FT64:
                 FT[j] = FT64
                 ct64 = ct64 + 1
                 edgesuc = edgesuc + 1
-            elif fmSNR[randedges][j] - margin > FT16:
+            elif fmSNR[-1][randedges][j] - fmT[randedges][j] > FT16:
                 FT[j] = FT16
                 ct16 = ct16 + 1
                 edgesuc = edgesuc + 1
-            elif fmSNR[randedges][j] - margin > FT4:
+            elif fmSNR[-1][randedges][j] - fmT[randedges][j] > FT4:
                 FT[j] = FT4
                 ct4 = ct4 + 1
                 edgesuc = edgesuc + 1
-            elif fmSNR[randedges][j] - margin > FT2:
+            elif fmSNR[-1][randedges][j] - fmT[randedges][j] > FT2:
                 FT[j] = FT2
                 ct2 = ct2 + 1
                 edgesuc = edgesuc + 1
@@ -716,15 +625,16 @@ def fmrta(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens,
                 #print("request " + str(i) + " denied -- insufficient reach on edge " + str(randedges[j]))
                 break   
         
-        if edgesuc == np.size(linkSNR[randedges],0):
+        if edgesuc == np.size(linkSNR[0][randedges],0):
             # generate new SNR value here
             for w in range(np.size(randedges)):
                 # retrieve estlam row corresponding to randegdes[w] index, find number of 1s, pass to SNRnew()
-                #estSNR = SNRnew(edgelens[randedges[w]], linkpert[randedges[w]], linkPopt, Lspans, np.count_nonzero(estlam[randedges[w]])+1 )
-                estSNR = SNRnewhet(edgelens[randedges[w]], linkPopt, Lspans, np.count_nonzero(estlam[randedges[w]])+1, 0.01 )
+               #edgelen, Lspans, numlam, NF,sd, alpha, yearind
+                
+                estSNR = SNRnew(edgelens[randedges[w]], np.count_nonzero(estlam[randedges[w]])+1, yearind)
                 if estSNR > FT[w]:
                     # link successfully established
-                    Um = Um + fmSNR[randedges[w]] - margin - FT[w]                                       
+                    Um = Um + fmSNR[-1][randedges[w]] - fmT[randedges[w]] - FT[w]                                       
                     edgesuc2 = edgesuc2 + 1
             if edgesuc2 == np.size(randedges):
                 # path successfully established
@@ -748,13 +658,13 @@ def fmrta(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens,
 
 
 # =============================================================================
-# testsrc = []
-# testdes = []
-# for _ in range(800):
-#     rsctest, rdstest = requestgen(graphA)
-#     testsrc.append(rsctest)
-#     testdes.append(rdstest)   
-# test1, test2, test3, test4, test5, test6, test7, test8, test9, test10, test11, test12, test13 = fmrta(graphA, edgesA, testsrc, testdes, False, 2.0,nodesA,numedgesA,edgelensA,fmSNR, LspansA)
+testsrc = []
+testdes = []
+for _ in range(2000):
+    rsctest, rdstest = requestgen(graphA)
+    testsrc.append(rsctest)
+    testdes.append(rdstest)   
+#test1, _, _, _, _, _, _, _, _, test10, _, _ = fmrta(graphA, edgesA, testsrc, testdes, False,nodesA,numedgesA,edgelensA,fmSNR, LspansA, -1)
 # =============================================================================
 
 
@@ -764,7 +674,7 @@ def removekey(d, keysrc, keydes):
     del r.get(keysrc)[keydes]
     return r 
 
-def fmrta2(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens,fmSNR, Lspans):
+def fmrta2(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, Lspans, yearind):
     dis = []
     path = []
     numnodes = np.size(nodes)
@@ -814,7 +724,7 @@ def fmrta2(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens
     for i in range(np.size(path)):
         pathdists.append(getlinklen(path[i],graphnormA,edges)[0])
         links.append(getlinklen(path[i],graphA,edges)[1])
-    estlam = np.zeros([numedges,numlam]) # 0 for empty, 1 for occupied
+    estlam = np.zeros([numedges,int(numlam[-1])]) # 0 for empty, 1 for occupied
     reqlams = 0
     conten = 0
     failures = 0 # post-reach determination failures
@@ -888,28 +798,28 @@ def fmrta2(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens
         # need to check SNR for all the edges in the path
         edgesuc = 0
         edgesuc2 = 0
-        FT = np.zeros(np.size(linkSNR[randedges],0))
+        FT = np.zeros(np.size(linkSNR[-1][randedges],0))
         #print(np.size(linkSNR[randedges],0))
         #print(np.size(randedges))
-        for j in range(np.size(linkSNR[randedges],0)):
+        for j in range(np.size(linkSNR[-1][randedges],0)):
             
-            if fmSNR[randedges][j] - margin > FT128:
+            if fmSNR[-1][randedges][j] - fmT[randedges][j] > FT128:
                 FT[j] = FT128
                 ct128 = ct128 + 1
                 edgesuc = edgesuc + 1
-            elif fmSNR[randedges][j] - margin > FT64:
+            elif fmSNR[-1][randedges][j] - fmT[randedges][j] > FT64:
                 FT[j] = FT64
                 ct64 = ct64 + 1
                 edgesuc = edgesuc + 1
-            elif fmSNR[randedges][j] - margin > FT16:
+            elif fmSNR[-1][randedges][j] - fmT[randedges][j] > FT16:
                 FT[j] = FT16
                 ct16 = ct16 + 1
                 edgesuc = edgesuc + 1
-            elif fmSNR[randedges][j] - margin > FT4:
+            elif fmSNR[-1][randedges][j] - fmT[randedges][j] > FT4:
                 FT[j] = FT4
                 ct4 = ct4 + 1
                 edgesuc = edgesuc + 1
-            elif fmSNR[randedges][j] - margin > FT2:
+            elif fmSNR[-1][randedges][j] - fmT[randedges][j] > FT2:
                 FT[j] = FT2
                 ct2 = ct2 + 1
                 edgesuc = edgesuc + 1
@@ -917,15 +827,14 @@ def fmrta2(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens
                 #print("request " + str(i) + " denied -- insufficient reach on edge " + str(randedges[j]))
                 break   
         
-        if edgesuc == np.size(linkSNR[randedges],0):
+        if edgesuc == np.size(linkSNR[-1][randedges],0):
             # generate new SNR value here
             for w in range(np.size(randedges)):
                 # retrieve estlam row corresponding to randegdes[w] index, find number of 1s, pass to SNRnew()
-                #estSNR = SNRnew(edgelens[randedges[w]], linkpert[randedges[w]], linkPopt, Lspans, np.count_nonzero(estlam[randedges[w]])+1 )
-                estSNR = SNRnewhet(edgelens[randedges[w]], linkPopt, Lspans, np.count_nonzero(estlam[randedges[w]])+1, 0.01 )
+                estSNR = SNRnew(edgelens[randedges[w]], np.count_nonzero(estlam[randedges[w]])+1, yearind)
                 if estSNR > FT[w]:
                     # link successfully established
-                    Um = Um + fmSNR[randedges[w]] - margin - FT[w]                                       
+                    Um = Um + fmSNR[-1][randedges[w]] - fmT[randedges][j] - FT[w]                                       
                     edgesuc2 = edgesuc2 + 1
             if edgesuc2 == np.size(randedges):
                 # path successfully established
@@ -942,61 +851,79 @@ def fmrta2(graph, edges, Rsource, Rdest, showres, margin,nodes,numedges,edgelens
     
     return ava, estlam, reqlams, conten,ct128, ct64, ct16, ct4,ct2, failures, noreach, Um
  
-#test21, test22, test23, test24, test25, test26, test27, test28, test29, test210, test211, test212 = fmrta2(graphA, edgesA, testsrc, testdes, False, 2.0,nodesA,numedgesA,edgelensA,fmSNR, LspansA)
+test21, test22, test23, test24, test25, test26, test27, test28, test29, test210, test211, test212 = fmrta2(graphA, edgesA, testsrc, testdes, False,nodesA,numedgesA,edgelensA,fmSNR, LspansA, 0)
 
 # %%
-def varrtap(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans):
+def varrtap(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans,yearind):
     dis = []
     path = []
     numnodes = np.size(nodes)
     if graphA == graphN:
         for i in range(numnodes):    
             for j in range(numnodes): 
-                d, p = dijkstra({'1':{'2':gwte[0][0],'3':gwte[1][0],'8':gwte[2][0]},'2':{'1':gwte[3][0],'3':gwte[4][0],'4':gwte[5][0]},'3':{'1':gwte[6][0],'2':gwte[7][0],'6':gwte[8][0]},    
-                 '4':{'2':gwte[9][0],'5':gwte[10][0],'11':gwte[11][0]},'5':{'4':gwte[12][0],'6':gwte[13][0],'7':gwte[14][0]}, '6':{'3':gwte[15][0],'5':gwte[16][0],'10':gwte[17][0],'14':gwte[18][0]},
-                 '7':{'5':gwte[19][0],'8':gwte[20][0],'10':gwte[21][0]}, '8':{'1':gwte[22][0],'7':gwte[23][0],'9':gwte[24][0]}, '9':{'8':gwte[25][0],'10':gwte[26][0],'12':gwte[27][0],'13':gwte[28][0]},
-                 '10':{'6':gwte[29][0],'7':gwte[30][0],'9':gwte[31][0]}, '11':{'4':gwte[32][0],'12':gwt[33][0],'13':gwt[34][0]}, '12':{'9':gwte[35][0],'11':gwte[36][0],'14':gwte[37][0]},
-                 '13':{'9':gwte[38][0],'11':gwte[39][0],'14':gwte[40][0]}, '14':{'6':gwte[41][0],'12':gwte[42][0],'13':gwte[43][0]}
-                 }, nodes[i], nodes[j])
+                d, p = dijkstra({'1':{'2':sigma[yearind][0],'3':sigma[yearind][1],'8':sigma[yearind][2]},'2':{'1':sigma[yearind][3],'3':sigma[yearind][4],'4':sigma[yearind][5]},'3':{'1':sigma[yearind][6],'2':sigma[yearind][7],'6':sigma[yearind][8]},    
+                 '4':{'2':sigma[yearind][9],'5':sigma[yearind][10],'11':sigma[yearind][11]},'5':{'4':sigma[yearind][12],'6':sigma[yearind][13],'7':sigma[yearind][14]}, '6':{'3':sigma[yearind][15],'5':sigma[yearind][16],'10':sigma[yearind][17],'14':sigma[yearind][18]},
+                 '7':{'5':sigma[yearind][19],'8':sigma[yearind][20],'10':sigma[yearind][21]}, '8':{'1':sigma[yearind][22],'7':sigma[yearind][23],'9':sigma[yearind][24]}, '9':{'8':sigma[yearind][25],'10':sigma[yearind][26],'12':sigma[yearind][27],'13':sigma[yearind][28]},
+                 '10':{'6':sigma[yearind][29],'7':sigma[yearind][30],'9':sigma[yearind][31]}, '11':{'4':sigma[yearind][32],'12':sigma[yearind][33],'13':sigma[yearind][34]}, '12':{'9':sigma[yearind][35],'11':sigma[yearind][36],'14':sigma[yearind][37]},
+                 '13':{'9':sigma[yearind][38],'11':sigma[yearind][39],'14':sigma[yearind][40]}, '14':{'6':sigma[yearind][41],'12':sigma[yearind][42],'13':sigma[yearind][43]}
+                 }    , nodes[i], nodes[j])
                 if i == j:
                     continue  # don't include lightpaths of length 0
                 else:
                     dis.append(d)
                     path.append(p)
+        graphvar = {'1':{'2':sigma[yearind][0],'3':sigma[yearind][1],'8':sigma[yearind][2]},'2':{'1':sigma[yearind][3],'3':sigma[yearind][4],'4':sigma[yearind][5]},'3':{'1':sigma[yearind][6],'2':sigma[yearind][7],'6':sigma[yearind][8]},    
+                 '4':{'2':sigma[yearind][9],'5':sigma[yearind][10],'11':sigma[yearind][11]},'5':{'4':sigma[yearind][12],'6':sigma[yearind][13],'7':sigma[yearind][14]}, '6':{'3':sigma[yearind][15],'5':sigma[yearind][16],'10':sigma[yearind][17],'14':sigma[yearind][18]},
+                 '7':{'5':sigma[yearind][19],'8':sigma[yearind][20],'10':sigma[yearind][21]}, '8':{'1':sigma[yearind][22],'7':sigma[yearind][23],'9':sigma[yearind][24]}, '9':{'8':sigma[yearind][25],'10':sigma[yearind][26],'12':sigma[yearind][27],'13':sigma[yearind][28]},
+                 '10':{'6':sigma[yearind][29],'7':sigma[yearind][30],'9':sigma[yearind][31]}, '11':{'4':sigma[yearind][32],'12':sigma[yearind][33],'13':sigma[yearind][34]}, '12':{'9':sigma[yearind][35],'11':sigma[yearind][36],'14':sigma[yearind][37]},
+                 '13':{'9':sigma[yearind][38],'11':sigma[yearind][39],'14':sigma[yearind][40]}, '14':{'6':sigma[yearind][41],'12':sigma[yearind][42],'13':sigma[yearind][43]}
+                 }   
     elif graphA == graphD:
         for i in range(numnodes):    
             for j in range(numnodes): 
-                d, p = dijkstra({'1':{'2':gwte[0][0],'3':gwte[1][0],'4':gwte[2][0]},'2':{'1':gwte[3][0],'4':gwte[4][0],'5':gwte[5][0]},'3':{'1':gwte[6][0],'4':gwte[7][0],'6':gwte[8][0]},    
-                '4':{'1':gwte[9][0],'2':gwte[10][0],'3':gwte[11][0],'5':gwte[12][0],'7':gwte[13][0],'10':gwte[14][0]},'5':{'2':gwte[15][0],'4':gwte[16][0],'10':gwte[17][0],'11':gwte[18][0]}, '6':{'3':gwte[19][0],'7':gwte[20][0],'8':gwte[21][0]},
-                '7':{'4':gwte[22][0],'6':gwte[23][0],'9':gwte[24][0]}, '8':{'6':gwte[25][0],'9':gwte[26][0]}, '9':{'7':gwte[27][0],'8':gwte[28][0],'10':gwte[29][0]},
-                '10':{'4':gwte[30][0],'5':gwte[31][0],'9':gwte[32][0],'11':gwte[33][0],'12':gwte[34][0]}, '11':{'5':gwte[35][0],'10':gwte[36][0],'12':gwte[37][0],'14':gwte[38][0]}, '12':{'10':gwte[39][0],'11':gwte[40][0],'13':gwte[41][0]},
-                '13':{'12':gwte[42][0],'14':gwte[43][0]}, '14':{'11':gwte[44][0],'13':gwte[45][0]}
+                d, p = dijkstra({'1':{'2':sigma[yearind][0],'3':sigma[yearind][1],'4':sigma[yearind][2]},'2':{'1':sigma[yearind][3],'4':sigma[yearind][4],'5':sigma[yearind][5]},'3':{'1':sigma[yearind][6],'4':sigma[yearind][7],'6':sigma[yearind][8]},    
+                '4':{'1':sigma[yearind][9],'2':sigma[yearind][10],'3':sigma[yearind][11],'5':sigma[yearind][12],'7':sigma[yearind][13],'10':sigma[yearind][14]},'5':{'2':sigma[yearind][15],'4':sigma[yearind][16],'10':sigma[yearind][17],'11':sigma[yearind][18]}, '6':{'3':sigma[yearind][19],'7':sigma[yearind][20],'8':sigma[yearind][21]},
+                '7':{'4':sigma[yearind][22],'6':sigma[yearind][23],'9':sigma[yearind][24]}, '8':{'6':sigma[yearind][25],'9':sigma[yearind][26]}, '9':{'7':sigma[yearind][27],'8':sigma[yearind][28],'10':sigma[yearind][29]},
+                '10':{'4':sigma[yearind][30],'5':sigma[yearind][31],'9':sigma[yearind][32],'11':sigma[yearind][33],'12':sigma[yearind][34]}, '11':{'5':sigma[yearind][35],'10':sigma[yearind][36],'12':sigma[yearind][37],'14':sigma[yearind][38]}, '12':{'10':sigma[yearind][39],'11':sigma[yearind][40],'13':sigma[yearind][41]},
+                '13':{'12':sigma[yearind][42],'14':sigma[yearind][43]}, '14':{'11':sigma[yearind][44],'13':sigma[yearind][45]}
                 }  , nodes[i], nodes[j])
                 if i == j:
                     continue  # don't include lightpaths of length 0
                 else:
                     dis.append(d)
                     path.append(p)
+        graphvar = {'1':{'2':sigma[yearind][0],'3':sigma[yearind][1],'4':sigma[yearind][2]},'2':{'1':sigma[yearind][3],'4':sigma[yearind][4],'5':sigma[yearind][5]},'3':{'1':sigma[yearind][6],'4':sigma[yearind][7],'6':sigma[yearind][8]},    
+                '4':{'1':sigma[yearind][9],'2':sigma[yearind][10],'3':sigma[yearind][11],'5':sigma[yearind][12],'7':sigma[yearind][13],'10':sigma[yearind][14]},'5':{'2':sigma[yearind][15],'4':sigma[yearind][16],'10':sigma[yearind][17],'11':sigma[yearind][18]}, '6':{'3':sigma[yearind][19],'7':sigma[yearind][20],'8':sigma[yearind][21]},
+                '7':{'4':sigma[yearind][22],'6':sigma[yearind][23],'9':sigma[yearind][24]}, '8':{'6':sigma[yearind][25],'9':sigma[yearind][26]}, '9':{'7':sigma[yearind][27],'8':sigma[yearind][28],'10':sigma[yearind][29]},
+                '10':{'4':sigma[yearind][30],'5':sigma[yearind][31],'9':sigma[yearind][32],'11':sigma[yearind][33],'12':sigma[yearind][34]}, '11':{'5':sigma[yearind][35],'10':sigma[yearind][36],'12':sigma[yearind][37],'14':sigma[yearind][38]}, '12':{'10':sigma[yearind][39],'11':sigma[yearind][40],'13':sigma[yearind][41]},
+                '13':{'12':sigma[yearind][42],'14':sigma[yearind][43]}, '14':{'11':sigma[yearind][44],'13':sigma[yearind][45]}
+                }  
     elif graphA == graphAL:
         for i in range(numnodes):    
             for j in range(numnodes): 
-                d, p = dijkstra({'1':{'4':gwte[0][0],'5':gwte[1][0]},'2':{'3':gwte[2][0],'7':gwte[3][0]},'3':{'2':gwte[4][0],'8':gwte[5][0]},    
-                '4':{'1':gwte[6][0],'5':gwte[7][0],'9':gwte[8][0]},'5':{'1':gwte[9][0],'4':gwte[10][0],'6':gwte[11][0]}, '6':{'5':gwte[12][0],'7':gwte[13][0],'11':gwte[14][0]},
-                '7':{'2':gwte[15][0],'6':gwte[16][0],'10':gwte[17][0]}, '8':{'3':gwte[18][0],'10':gwte[19][0]}, '9':{'4':gwte[20][0],'11':gwte[21][0]},
-                '10':{'7':gwte[22][0],'8':gwte[23][0],'11':gwte[24][0]}, '11':{'6':gwte[25][0],'9':gwte[26][0],'10':gwte[27][0]}
+                d, p = dijkstra({'1':{'4':sigma[yearind][0],'5':sigma[yearind][1]},'2':{'3':sigma[yearind][2],'7':sigma[yearind][3]},'3':{'2':sigma[yearind][4],'8':sigma[yearind][5]},    
+                '4':{'1':sigma[yearind][6],'5':sigma[yearind][7],'9':sigma[yearind][8]},'5':{'1':sigma[yearind][9],'4':sigma[yearind][10],'6':sigma[yearind][11]}, '6':{'5':sigma[yearind][12],'7':sigma[yearind][13],'11':sigma[yearind][14]},
+                '7':{'2':sigma[yearind][15],'6':sigma[yearind][16],'10':sigma[yearind][17]}, '8':{'3':sigma[yearind][18],'10':sigma[yearind][19]}, '9':{'4':sigma[yearind][20],'11':sigma[yearind][21]},
+                '10':{'7':sigma[yearind][22],'8':sigma[yearind][23],'11':sigma[yearind][24]}, '11':{'6':sigma[yearind][25],'9':sigma[yearind][26],'10':sigma[yearind][27]}
                 }  , nodes[i], nodes[j])
                 if i == j:
                     continue  # don't include lightpaths of length 0
                 else:
                     dis.append(d)
                     path.append(p)
+        graphvar = {'1':{'4':sigma[yearind][0],'5':sigma[yearind][1]},'2':{'3':sigma[yearind][2],'7':sigma[yearind][3]},'3':{'2':sigma[yearind][4],'8':sigma[yearind][5]},    
+                '4':{'1':sigma[yearind][6],'5':sigma[yearind][7],'9':sigma[yearind][8]},'5':{'1':sigma[yearind][9],'4':sigma[yearind][10],'6':sigma[yearind][11]}, '6':{'5':sigma[yearind][12],'7':sigma[yearind][13],'11':sigma[yearind][14]},
+                '7':{'2':sigma[yearind][15],'6':sigma[yearind][16],'10':sigma[yearind][17]}, '8':{'3':sigma[yearind][18],'10':sigma[yearind][19]}, '9':{'4':sigma[yearind][20],'11':sigma[yearind][21]},
+                '10':{'7':sigma[yearind][22],'8':sigma[yearind][23],'11':sigma[yearind][24]}, '11':{'6':sigma[yearind][25],'9':sigma[yearind][26],'10':sigma[yearind][27]}
+                } 
     pathdists = []
-    links = []                                                
+    links = []  
+                                               
     for i in range(np.size(path)):
         pathdists.append(getlinklen(path[i],graphnormA,edges)[0])
-        links.append(getlinklen(path[i],graph,edges)[1])
+        links.append(getlinklen(path[i],graphvar,edges)[1])
     
-    estlam = np.zeros([numedges,numlam]) # 0 for empty, 1 for occupied
+    estlam = np.zeros([numedges,int(numlam[-1])]) # 0 for empty, 1 for occupied
     reqlams = 0
     conten = 0
     failures = 0
@@ -1035,47 +962,42 @@ def varrtap(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lsp
         # need to check SNR for all the edges in the path
         edgesuc = 0
         edgesuc2 = 0
-        FT = np.zeros(np.size(linkSNR[randedges],0))
-        for j in range(np.size(linkSNR[randedges],0)): # for each edge in the path
+        FT = np.zeros(np.size(linkSNR[0][randedges],0))
+        
+        for j in range(np.size(linkSNR[0][randedges],0)): # for each edge in the path
             #if linkSNR[randedges][j][prmnopt[randedges[j]]] > FT:
         
-            if prmn[randedges][j][prmnopt[randedges[j]]] > FT128 and (prmn[randedges][j][prmnopt[randedges[j]]] - FT128)/gsige[randedges[j]] > numsig:
-                conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT128)/gsige[randedges[j]])
+            if (prmn[yearind][randedges][j] - FT128)/sigma[yearind][randedges[j]] > numsig:
                 FT[j] = FT128
                 ct128 = ct128 + 1
                 edgesuc = edgesuc + 1
-            elif prmn[randedges][j][prmnopt[randedges[j]]] > FT64 and (prmn[randedges][j][prmnopt[randedges[j]]] - FT64)/gsige[randedges[j]] > numsig:
-                conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT64)/gsige[randedges[j]])
+            elif (prmn[yearind][randedges][j] - FT64)/sigma[yearind][randedges[j]] > numsig:
                 FT[j] = FT64
                 ct64 = ct64 + 1
                 edgesuc = edgesuc + 1
-            elif prmn[randedges][j][prmnopt[randedges[j]]] > FT16 and (prmn[randedges][j][prmnopt[randedges[j]]] - FT16)/gsige[randedges[j]] > numsig:
-                conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT16)/gsige[randedges[j]])
+            elif (prmn[yearind][randedges][j] - FT16)/sigma[yearind][randedges[j]] > numsig:
                 FT[j] = FT16
                 ct16 = ct16 + 1
                 edgesuc = edgesuc + 1
-            elif prmn[randedges][j][prmnopt[randedges[j]]] > FT4 and (prmn[randedges][j][prmnopt[randedges[j]]] - FT4)/gsige[randedges[j]] > numsig:
-                conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT4)/gsige[randedges[j]])
+            elif (prmn[yearind][randedges][j] - FT4)/sigma[yearind][randedges[j]] > numsig:
                 FT[j] = FT4
                 ct4 = ct4 + 1
                 edgesuc = edgesuc + 1
-            elif prmn[randedges][j][prmnopt[randedges[j]]] > FT2 and (prmn[randedges][j][prmnopt[randedges[j]]] - FT2)/gsige[randedges[j]] > numsig:
-                conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT2)/gsige[randedges[j]])
+            elif (prmn[yearind][randedges][j] - FT2)/sigma[yearind][randedges[j]] > numsig:
                 FT[j] = FT2
                 ct2 = ct2 + 1
                 edgesuc = edgesuc + 1
             else:
-                #print("request " + str(i) + " denied -- insufficient reach on edge " + str(randedges[j]))
                 break   
-       
-        if edgesuc == np.size(linkSNR[randedges],0):
+        
+        if edgesuc == np.size(linkSNR[0][randedges],0):
             # generate new SNR value here
             for w in range(np.size(randedges)):
                 #estSNR = SNRnew(edgelens[randedges[w]], linkpert[randedges[w]], linkPch[randedges[w]], Lspans, np.count_nonzero(estlam[randedges[w]])+1 )
-                estSNR = SNRnewhet(edgelens[randedges[w]], linkPopt, Lspans, np.count_nonzero(estlam[randedges[w]])+1, 0.01 )
+                estSNR = SNRnew(edgelens[randedges[w]], np.count_nonzero(estlam[randedges[w]])+1, yearind)
                 if estSNR > FT[w]:
                     # link successfully established
-                    Um = Um + (prmn[randedges][w][prmnopt[randedges[w]]] - FT[w]) - (numsig*gsige[randedges[w]])  
+                    Um = Um + (prmn[yearind][randedges][w]- FT[w]) - (numsig*sigma[yearind][randedges[w]])  
                     edgesuc2 = edgesuc2 + 1
             if edgesuc2 == np.size(randedges):
                 # path successfully established
@@ -1092,72 +1014,89 @@ def varrtap(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lsp
         print("Variance-aided total traversal time = " + str('%.2f' % tottime) + "s")
     return ava, estlam, reqlams, tottime,conten, conf, ct128, ct64, ct16, ct4,ct2, failures, Um
 # =============================================================================
-# testdes = []
-# testsrc = []
-# for _ in range(80):
-#     rsctest, rdstest = requestgen(graphA)
-#     testsrc.append(rsctest)
-#     testdes.append(rdstest)   
-#                                                                                                                        # graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans
-# test1, test2, test3, test4, test5, test6, test7, test8, test9, test10, test11, test12, test13 = varrtap(graphA, edgesA, testsrc, testdes, False,6.0,nodesA,numedgesA,edgelensA, LspansA)
-# test14 = test13/(test7 + test8 + test9 + test10 + test11)
+testdes = []
+testsrc = []
+for _ in range(2000):
+    rsctest, rdstest = requestgen(graphA)
+    testsrc.append(rsctest)
+    testdes.append(rdstest)   
+                                                                                                                       # graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans
+#test1, test2, test3, test4, test5, test6, test7, test8, test9, test10, test11, test12, test13 = varrtap(graphA, edgesA, testsrc, testdes, False,5.0,nodesA,numedgesA,edgelensA, LspansA, 0)
+#test14 = test13/(test7 + test8 + test9 + test10 + test11)
 # =============================================================================
     
 
 # %%
     
-def varrtap2(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans):
+def varrtap2(edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans,yearind):
     dis = []
     path = []
     numnodes = np.size(nodes)
     if graphA == graphN:
         for i in range(numnodes):    
             for j in range(numnodes): 
-                d, p = dijkstra({'1':{'2':gwte[0][0],'3':gwte[1][0],'8':gwte[2][0]},'2':{'1':gwte[3][0],'3':gwte[4][0],'4':gwte[5][0]},'3':{'1':gwte[6][0],'2':gwte[7][0],'6':gwte[8][0]},    
-                 '4':{'2':gwte[9][0],'5':gwte[10][0],'11':gwte[11][0]},'5':{'4':gwte[12][0],'6':gwte[13][0],'7':gwte[14][0]}, '6':{'3':gwte[15][0],'5':gwte[16][0],'10':gwte[17][0],'14':gwte[18][0]},
-                 '7':{'5':gwte[19][0],'8':gwte[20][0],'10':gwte[21][0]}, '8':{'1':gwte[22][0],'7':gwte[23][0],'9':gwte[24][0]}, '9':{'8':gwte[25][0],'10':gwte[26][0],'12':gwte[27][0],'13':gwte[28][0]},
-                 '10':{'6':gwte[29][0],'7':gwte[30][0],'9':gwte[31][0]}, '11':{'4':gwte[32][0],'12':gwt[33][0],'13':gwt[34][0]}, '12':{'9':gwte[35][0],'11':gwte[36][0],'14':gwte[37][0]},
-                 '13':{'9':gwte[38][0],'11':gwte[39][0],'14':gwte[40][0]}, '14':{'6':gwte[41][0],'12':gwte[42][0],'13':gwte[43][0]}
+                d, p = dijkstra({'1':{'2':sigma[yearind][0],'3':sigma[yearind][1],'8':sigma[yearind][2]},'2':{'1':sigma[yearind][3],'3':sigma[yearind][4],'4':sigma[yearind][5]},'3':{'1':sigma[yearind][6],'2':sigma[yearind][7],'6':sigma[yearind][8]},    
+                 '4':{'2':sigma[yearind][9],'5':sigma[yearind][10],'11':sigma[yearind][11]},'5':{'4':sigma[yearind][12],'6':sigma[yearind][13],'7':sigma[yearind][14]}, '6':{'3':sigma[yearind][15],'5':sigma[yearind][16],'10':sigma[yearind][17],'14':sigma[yearind][18]},
+                 '7':{'5':sigma[yearind][19],'8':sigma[yearind][20],'10':sigma[yearind][21]}, '8':{'1':sigma[yearind][22],'7':sigma[yearind][23],'9':sigma[yearind][24]}, '9':{'8':sigma[yearind][25],'10':sigma[yearind][26],'12':sigma[yearind][27],'13':sigma[yearind][28]},
+                 '10':{'6':sigma[yearind][29],'7':sigma[yearind][30],'9':sigma[yearind][31]}, '11':{'4':sigma[yearind][32],'12':sigma[yearind][33],'13':sigma[yearind][34]}, '12':{'9':sigma[yearind][35],'11':sigma[yearind][36],'14':sigma[yearind][37]},
+                 '13':{'9':sigma[yearind][38],'11':sigma[yearind][39],'14':sigma[yearind][40]}, '14':{'6':sigma[yearind][41],'12':sigma[yearind][42],'13':sigma[yearind][43]}
                  }, nodes[i], nodes[j])
                 if i == j:
                     continue  # don't include lightpaths of length 0
                 else:
                     dis.append(d)
                     path.append(p)
+        graphvar = {'1':{'2':sigma[yearind][0],'3':sigma[yearind][1],'8':sigma[yearind][2]},'2':{'1':sigma[yearind][3],'3':sigma[yearind][4],'4':sigma[yearind][5]},'3':{'1':sigma[yearind][6],'2':sigma[yearind][7],'6':sigma[yearind][8]},    
+                 '4':{'2':sigma[yearind][9],'5':sigma[yearind][10],'11':sigma[yearind][11]},'5':{'4':sigma[yearind][12],'6':sigma[yearind][13],'7':sigma[yearind][14]}, '6':{'3':sigma[yearind][15],'5':sigma[yearind][16],'10':sigma[yearind][17],'14':sigma[yearind][18]},
+                 '7':{'5':sigma[yearind][19],'8':sigma[yearind][20],'10':sigma[yearind][21]}, '8':{'1':sigma[yearind][22],'7':sigma[yearind][23],'9':sigma[yearind][24]}, '9':{'8':sigma[yearind][25],'10':sigma[yearind][26],'12':sigma[yearind][27],'13':sigma[yearind][28]},
+                 '10':{'6':sigma[yearind][29],'7':sigma[yearind][30],'9':sigma[yearind][31]}, '11':{'4':sigma[yearind][32],'12':sigma[yearind][33],'13':sigma[yearind][34]}, '12':{'9':sigma[yearind][35],'11':sigma[yearind][36],'14':sigma[yearind][37]},
+                 '13':{'9':sigma[yearind][38],'11':sigma[yearind][39],'14':sigma[yearind][40]}, '14':{'6':sigma[yearind][41],'12':sigma[yearind][42],'13':sigma[yearind][43]}
+                 }  
     elif graphA == graphD:
         for i in range(numnodes):    
             for j in range(numnodes): 
-                d, p = dijkstra({'1':{'2':gwte[0][0],'3':gwte[1][0],'4':gwte[2][0]},'2':{'1':gwte[3][0],'4':gwte[4][0],'5':gwte[5][0]},'3':{'1':gwte[6][0],'4':gwte[7][0],'6':gwte[8][0]},    
-                '4':{'1':gwte[9][0],'2':gwte[10][0],'3':gwte[11][0],'5':gwte[12][0],'7':gwte[13][0],'10':gwte[14][0]},'5':{'2':gwte[15][0],'4':gwte[16][0],'10':gwte[17][0],'11':gwte[18][0]}, '6':{'3':gwte[19][0],'7':gwte[20][0],'8':gwte[21][0]},
-                '7':{'4':gwte[22][0],'6':gwte[23][0],'9':gwte[24][0]}, '8':{'6':gwte[25][0],'9':gwte[26][0]}, '9':{'7':gwte[27][0],'8':gwte[28][0],'10':gwte[29][0]},
-                '10':{'4':gwte[30][0],'5':gwte[31][0],'9':gwte[32][0],'11':gwte[33][0],'12':gwte[34][0]}, '11':{'5':gwte[35][0],'10':gwte[36][0],'12':gwte[37][0],'14':gwte[38][0]}, '12':{'10':gwte[39][0],'11':gwte[40][0],'13':gwte[41][0]},
-                '13':{'12':gwte[42][0],'14':gwte[43][0]}, '14':{'11':gwte[44][0],'13':gwte[45][0]}
+                d, p = dijkstra({'1':{'2':sigma[yearind][0],'3':sigma[yearind][1],'4':sigma[yearind][2]},'2':{'1':sigma[yearind][3],'4':sigma[yearind][4],'5':sigma[yearind][5]},'3':{'1':sigma[yearind][6],'4':sigma[yearind][7],'6':sigma[yearind][8]},    
+                '4':{'1':sigma[yearind][9],'2':sigma[yearind][10],'3':sigma[yearind][11],'5':sigma[yearind][12],'7':sigma[yearind][13],'10':sigma[yearind][14]},'5':{'2':sigma[yearind][15],'4':sigma[yearind][16],'10':sigma[yearind][17],'11':sigma[yearind][18]}, '6':{'3':sigma[yearind][19],'7':sigma[yearind][20],'8':sigma[yearind][21]},
+                '7':{'4':sigma[yearind][22],'6':sigma[yearind][23],'9':sigma[yearind][24]}, '8':{'6':sigma[yearind][25],'9':sigma[yearind][26]}, '9':{'7':sigma[yearind][27],'8':sigma[yearind][28],'10':sigma[yearind][29]},
+                '10':{'4':sigma[yearind][30],'5':sigma[yearind][31],'9':sigma[yearind][32],'11':sigma[yearind][33],'12':sigma[yearind][34]}, '11':{'5':sigma[yearind][35],'10':sigma[yearind][36],'12':sigma[yearind][37],'14':sigma[yearind][38]}, '12':{'10':sigma[yearind][39],'11':sigma[yearind][40],'13':sigma[yearind][41]},
+                '13':{'12':sigma[yearind][42],'14':sigma[yearind][43]}, '14':{'11':sigma[yearind][44],'13':sigma[yearind][45]}
                 }  , nodes[i], nodes[j])
                 if i == j:
                     continue  # don't include lightpaths of length 0
                 else:
                     dis.append(d)
                     path.append(p)
+        graphvar = {'1':{'2':sigma[yearind][0],'3':sigma[yearind][1],'4':sigma[yearind][2]},'2':{'1':sigma[yearind][3],'4':sigma[yearind][4],'5':sigma[yearind][5]},'3':{'1':sigma[yearind][6],'4':sigma[yearind][7],'6':sigma[yearind][8]},    
+                '4':{'1':sigma[yearind][9],'2':sigma[yearind][10],'3':sigma[yearind][11],'5':sigma[yearind][12],'7':sigma[yearind][13],'10':sigma[yearind][14]},'5':{'2':sigma[yearind][15],'4':sigma[yearind][16],'10':sigma[yearind][17],'11':sigma[yearind][18]}, '6':{'3':sigma[yearind][19],'7':sigma[yearind][20],'8':sigma[yearind][21]},
+                '7':{'4':sigma[yearind][22],'6':sigma[yearind][23],'9':sigma[yearind][24]}, '8':{'6':sigma[yearind][25],'9':sigma[yearind][26]}, '9':{'7':sigma[yearind][27],'8':sigma[yearind][28],'10':sigma[yearind][29]},
+                '10':{'4':sigma[yearind][30],'5':sigma[yearind][31],'9':sigma[yearind][32],'11':sigma[yearind][33],'12':sigma[yearind][34]}, '11':{'5':sigma[yearind][35],'10':sigma[yearind][36],'12':sigma[yearind][37],'14':sigma[yearind][38]}, '12':{'10':sigma[yearind][39],'11':sigma[yearind][40],'13':sigma[yearind][41]},
+                '13':{'12':sigma[yearind][42],'14':sigma[yearind][43]}, '14':{'11':sigma[yearind][44],'13':sigma[yearind][45]}
+                }  
     elif graphA == graphAL:
         for i in range(numnodes):    
             for j in range(numnodes): 
-                d, p = dijkstra({'1':{'4':gwte[0][0],'5':gwte[1][0]},'2':{'3':gwte[2][0],'7':gwte[3][0]},'3':{'2':gwte[4][0],'8':gwte[5][0]},    
-                '4':{'1':gwte[6][0],'5':gwte[7][0],'9':gwte[8][0]},'5':{'1':gwte[9][0],'4':gwte[10][0],'6':gwte[11][0]}, '6':{'5':gwte[12][0],'7':gwte[13][0],'11':gwte[14][0]},
-                '7':{'2':gwte[15][0],'6':gwte[16][0],'10':gwte[17][0]}, '8':{'3':gwte[18][0],'10':gwte[19][0]}, '9':{'4':gwte[20][0],'11':gwte[21][0]},
-                '10':{'7':gwte[22][0],'8':gwte[23][0],'11':gwte[24][0]}, '11':{'6':gwte[25][0],'9':gwte[26][0],'10':gwte[27][0]}
+                d, p = dijkstra({'1':{'4':sigma[yearind][0],'5':sigma[yearind][1]},'2':{'3':sigma[yearind][2],'7':sigma[yearind][3]},'3':{'2':sigma[yearind][4],'8':sigma[yearind][5]},    
+                '4':{'1':sigma[yearind][6],'5':sigma[yearind][7],'9':sigma[yearind][8]},'5':{'1':sigma[yearind][9],'4':sigma[yearind][10],'6':sigma[yearind][11]}, '6':{'5':sigma[yearind][12],'7':sigma[yearind][13],'11':sigma[yearind][14]},
+                '7':{'2':sigma[yearind][15],'6':sigma[yearind][16],'10':sigma[yearind][17]}, '8':{'3':sigma[yearind][18],'10':sigma[yearind][19]}, '9':{'4':sigma[yearind][20],'11':sigma[yearind][21]},
+                '10':{'7':sigma[yearind][22],'8':sigma[yearind][23],'11':sigma[yearind][24]}, '11':{'6':sigma[yearind][25],'9':sigma[yearind][26],'10':sigma[yearind][27]}
                 }  , nodes[i], nodes[j])
                 if i == j:
                     continue  # don't include lightpaths of length 0
                 else:
                     dis.append(d)
                     path.append(p)
+        graphvar = {'1':{'4':sigma[yearind][0],'5':sigma[yearind][1]},'2':{'3':sigma[yearind][2],'7':sigma[yearind][3]},'3':{'2':sigma[yearind][4],'8':sigma[yearind][5]},    
+                '4':{'1':sigma[yearind][6],'5':sigma[yearind][7],'9':sigma[yearind][8]},'5':{'1':sigma[yearind][9],'4':sigma[yearind][10],'6':sigma[yearind][11]}, '6':{'5':sigma[yearind][12],'7':sigma[yearind][13],'11':sigma[yearind][14]},
+                '7':{'2':sigma[yearind][15],'6':sigma[yearind][16],'10':sigma[yearind][17]}, '8':{'3':sigma[yearind][18],'10':sigma[yearind][19]}, '9':{'4':sigma[yearind][20],'11':sigma[yearind][21]},
+                '10':{'7':sigma[yearind][22],'8':sigma[yearind][23],'11':sigma[yearind][24]}, '11':{'6':sigma[yearind][25],'9':sigma[yearind][26],'10':sigma[yearind][27]}
+                }
     pathdists = []
     links = []                                                
     for i in range(np.size(path)):
         pathdists.append(getlinklen(path[i],graphnormA,edges)[0])
-        links.append(getlinklen(path[i],graph,edges)[1])
+        links.append(getlinklen(path[i],graphvar,edges)[1])
     
-    estlam = np.zeros([numedges,numlam]) # 0 for empty, 1 for occupied
+    estlam = np.zeros([numedges,int(numlam[-1])]) # 0 for empty, 1 for occupied
     reqlams = 0
     conten = 0
     failures = 0
@@ -1196,25 +1135,25 @@ def varrtap2(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Ls
                         desnode = list(edgesA.get(y).keys())[list(edgesA.get(y).values()).index(target)]
                         break 
                 if graphA == graphN:
-                    graphA2 = removekey({'1':{'2':gwte[0][0],'3':gwte[1][0],'8':gwte[2][0]},'2':{'1':gwte[3][0],'3':gwte[4][0],'4':gwte[5][0]},'3':{'1':gwte[6][0],'2':gwte[7][0],'6':gwte[8][0]},    
-                     '4':{'2':gwte[9][0],'5':gwte[10][0],'11':gwte[11][0]},'5':{'4':gwte[12][0],'6':gwte[13][0],'7':gwte[14][0]}, '6':{'3':gwte[15][0],'5':gwte[16][0],'10':gwte[17][0],'14':gwte[18][0]},
-                     '7':{'5':gwte[19][0],'8':gwte[20][0],'10':gwte[21][0]}, '8':{'1':gwte[22][0],'7':gwte[23][0],'9':gwte[24][0]}, '9':{'8':gwte[25][0],'10':gwte[26][0],'12':gwte[27][0],'13':gwte[28][0]},
-                     '10':{'6':gwte[29][0],'7':gwte[30][0],'9':gwte[31][0]}, '11':{'4':gwte[32][0],'12':gwt[33][0],'13':gwt[34][0]}, '12':{'9':gwte[35][0],'11':gwte[36][0],'14':gwte[37][0]},
-                     '13':{'9':gwte[38][0],'11':gwte[39][0],'14':gwte[40][0]}, '14':{'6':gwte[41][0],'12':gwte[42][0],'13':gwte[43][0]}
-                     }, srcnode, desnode) 
+                    graphA2 = removekey({'1':{'2':sigma[yearind][0],'3':sigma[yearind][1],'8':sigma[yearind][2]},'2':{'1':sigma[yearind][3],'3':sigma[yearind][4],'4':sigma[yearind][5]},'3':{'1':sigma[yearind][6],'2':sigma[yearind][7],'6':sigma[yearind][8]},    
+                 '4':{'2':sigma[yearind][9],'5':sigma[yearind][10],'11':sigma[yearind][11]},'5':{'4':sigma[yearind][12],'6':sigma[yearind][13],'7':sigma[yearind][14]}, '6':{'3':sigma[yearind][15],'5':sigma[yearind][16],'10':sigma[yearind][17],'14':sigma[yearind][18]},
+                 '7':{'5':sigma[yearind][19],'8':sigma[yearind][20],'10':sigma[yearind][21]}, '8':{'1':sigma[yearind][22],'7':sigma[yearind][23],'9':sigma[yearind][24]}, '9':{'8':sigma[yearind][25],'10':sigma[yearind][26],'12':sigma[yearind][27],'13':sigma[yearind][28]},
+                 '10':{'6':sigma[yearind][29],'7':sigma[yearind][30],'9':sigma[yearind][31]}, '11':{'4':sigma[yearind][32],'12':sigma[yearind][33],'13':sigma[yearind][34]}, '12':{'9':sigma[yearind][35],'11':sigma[yearind][36],'14':sigma[yearind][37]},
+                 '13':{'9':sigma[yearind][38],'11':sigma[yearind][39],'14':sigma[yearind][40]}, '14':{'6':sigma[yearind][41],'12':sigma[yearind][42],'13':sigma[yearind][43]}
+                 }, srcnode, desnode) 
                 elif graphA == graphD:
-                    graphA2 = removekey({'1':{'2':gwte[0][0],'3':gwte[1][0],'4':gwte[2][0]},'2':{'1':gwte[3][0],'4':gwte[4][0],'5':gwte[5][0]},'3':{'1':gwte[6][0],'4':gwte[7][0],'6':gwte[8][0]},    
-                    '4':{'1':gwte[9][0],'2':gwte[10][0],'3':gwte[11][0],'5':gwte[12][0],'7':gwte[13][0],'10':gwte[14][0]},'5':{'2':gwte[15][0],'4':gwte[16][0],'10':gwte[17][0],'11':gwte[18][0]}, '6':{'3':gwte[19][0],'7':gwte[20][0],'8':gwte[21][0]},
-                    '7':{'4':gwte[22][0],'6':gwte[23][0],'9':gwte[24][0]}, '8':{'6':gwte[25][0],'9':gwte[26][0]}, '9':{'7':gwte[27][0],'8':gwte[28][0],'10':gwte[29][0]},
-                    '10':{'4':gwte[30][0],'5':gwte[31][0],'9':gwte[32][0],'11':gwte[33][0],'12':gwte[34][0]}, '11':{'5':gwte[35][0],'10':gwte[36][0],'12':gwte[37][0],'14':gwte[38][0]}, '12':{'10':gwte[39][0],'11':gwte[40][0],'13':gwte[41][0]},
-                    '13':{'12':gwte[42][0],'14':gwte[43][0]}, '14':{'11':gwte[44][0],'13':gwte[45][0]}
-                    }, srcnode, desnode)  # remove this link from the graph and find shortest path with Dijkstra        
+                    graphA2 = removekey({'1':{'2':sigma[yearind][0],'3':sigma[yearind][1],'4':sigma[yearind][2]},'2':{'1':sigma[yearind][3],'4':sigma[yearind][4],'5':sigma[yearind][5]},'3':{'1':sigma[yearind][6],'4':sigma[yearind][7],'6':sigma[yearind][8]},    
+                '4':{'1':sigma[yearind][9],'2':sigma[yearind][10],'3':sigma[yearind][11],'5':sigma[yearind][12],'7':sigma[yearind][13],'10':sigma[yearind][14]},'5':{'2':sigma[yearind][15],'4':sigma[yearind][16],'10':sigma[yearind][17],'11':sigma[yearind][18]}, '6':{'3':sigma[yearind][19],'7':sigma[yearind][20],'8':sigma[yearind][21]},
+                '7':{'4':sigma[yearind][22],'6':sigma[yearind][23],'9':sigma[yearind][24]}, '8':{'6':sigma[yearind][25],'9':sigma[yearind][26]}, '9':{'7':sigma[yearind][27],'8':sigma[yearind][28],'10':sigma[yearind][29]},
+                '10':{'4':sigma[yearind][30],'5':sigma[yearind][31],'9':sigma[yearind][32],'11':sigma[yearind][33],'12':sigma[yearind][34]}, '11':{'5':sigma[yearind][35],'10':sigma[yearind][36],'12':sigma[yearind][37],'14':sigma[yearind][38]}, '12':{'10':sigma[yearind][39],'11':sigma[yearind][40],'13':sigma[yearind][41]},
+                '13':{'12':sigma[yearind][42],'14':sigma[yearind][43]}, '14':{'11':sigma[yearind][44],'13':sigma[yearind][45]}
+                } , srcnode, desnode)  # remove this link from the graph and find shortest path with Dijkstra        
                 elif graphA == graphAL:
-                    graphA2 = removekey({'1':{'4':gwte[0][0],'5':gwte[1][0]},'2':{'3':gwte[2][0],'7':gwte[3][0]},'3':{'2':gwte[4][0],'8':gwte[5][0]},    
-                    '4':{'1':gwte[6][0],'5':gwte[7][0],'9':gwte[8][0]},'5':{'1':gwte[9][0],'4':gwte[10][0],'6':gwte[11][0]}, '6':{'5':gwte[12][0],'7':gwte[13][0],'11':gwte[14][0]},
-                    '7':{'2':gwte[15][0],'6':gwte[16][0],'10':gwte[17][0]}, '8':{'3':gwte[18][0],'10':gwte[19][0]}, '9':{'4':gwte[20][0],'11':gwte[21][0]},
-                    '10':{'7':gwte[22][0],'8':gwte[23][0],'11':gwte[24][0]}, '11':{'6':gwte[25][0],'9':gwte[26][0],'10':gwte[27][0]}
-                    }, srcnode, desnode)  # remove this link from the graph and find shortest path with Dijkstra 
+                    graphA2 = removekey({'1':{'4':sigma[yearind][0],'5':sigma[yearind][1]},'2':{'3':sigma[yearind][2],'7':sigma[yearind][3]},'3':{'2':sigma[yearind][4],'8':sigma[yearind][5]},    
+                '4':{'1':sigma[yearind][6],'5':sigma[yearind][7],'9':sigma[yearind][8]},'5':{'1':sigma[yearind][9],'4':sigma[yearind][10],'6':sigma[yearind][11]}, '6':{'5':sigma[yearind][12],'7':sigma[yearind][13],'11':sigma[yearind][14]},
+                '7':{'2':sigma[yearind][15],'6':sigma[yearind][16],'10':sigma[yearind][17]}, '8':{'3':sigma[yearind][18],'10':sigma[yearind][19]}, '9':{'4':sigma[yearind][20],'11':sigma[yearind][21]},
+                '10':{'7':sigma[yearind][22],'8':sigma[yearind][23],'11':sigma[yearind][24]}, '11':{'6':sigma[yearind][25],'9':sigma[yearind][26],'10':sigma[yearind][27]}
+                }, srcnode, desnode)  # remove this link from the graph and find shortest path with Dijkstra 
                 dist2, path2 = dijkstra(graphA2, Rsource[i], Rdest[i])
                 link2 = (getlinklen(path2,graphA,edges)[1]) # converts nodes traversed to edges traversed = 'new randedges'
                 shptcon = True
@@ -1232,47 +1171,40 @@ def varrtap2(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Ls
         # need to check SNR for all the edges in the path
         edgesuc = 0
         edgesuc2 = 0
-        FT = np.zeros(np.size(linkSNR[randedges],0))
-        for j in range(np.size(linkSNR[randedges],0)): # for each edge in the path
+        FT = np.zeros(np.size(linkSNR[0][randedges],0))
+        for j in range(np.size(linkSNR[0][randedges],0)): # for each edge in the path
             #if linkSNR[randedges][j][prmnopt[randedges[j]]] > FT:
         
-            if prmn[randedges][j][prmnopt[randedges[j]]] > FT128 and (prmn[randedges][j][prmnopt[randedges[j]]] - FT128)/gsige[randedges[j]] > numsig:
-                conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT128)/gsige[randedges[j]])
+            if (prmn[yearind][randedges][j] - FT128)/sigma[yearind][randedges[j]] > numsig:
                 FT[j] = FT128
                 ct128 = ct128 + 1
                 edgesuc = edgesuc + 1
-            elif prmn[randedges][j][prmnopt[randedges[j]]] > FT64 and (prmn[randedges][j][prmnopt[randedges[j]]] - FT64)/gsige[randedges[j]] > numsig:
-                conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT64)/gsige[randedges[j]])
+            elif (prmn[yearind][randedges][j] - FT64)/sigma[yearind][randedges[j]] > numsig:   
                 FT[j] = FT64
                 ct64 = ct64 + 1
                 edgesuc = edgesuc + 1
-            elif prmn[randedges][j][prmnopt[randedges[j]]] > FT16 and (prmn[randedges][j][prmnopt[randedges[j]]] - FT16)/gsige[randedges[j]] > numsig:
-                conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT16)/gsige[randedges[j]])
+            elif (prmn[yearind][randedges][j] - FT16)/sigma[yearind][randedges[j]] > numsig:
                 FT[j] = FT16
                 ct16 = ct16 + 1
                 edgesuc = edgesuc + 1
-            elif prmn[randedges][j][prmnopt[randedges[j]]] > FT4 and (prmn[randedges][j][prmnopt[randedges[j]]] - FT4)/gsige[randedges[j]] > numsig:
-                conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT4)/gsige[randedges[j]])
+            elif (prmn[yearind][randedges][j] - FT4)/sigma[yearind][randedges[j]] > numsig:
                 FT[j] = FT4
                 ct4 = ct4 + 1
                 edgesuc = edgesuc + 1
-            elif prmn[randedges][j][prmnopt[randedges[j]]] > FT2 and (prmn[randedges][j][prmnopt[randedges[j]]] - FT2)/gsige[randedges[j]] > numsig:
-                conf.append((prmn[randedges][j][prmnopt[randedges[j]]] - FT2)/gsige[randedges[j]])
+            elif (prmn[yearind][randedges][j] - FT2)/sigma[yearind][randedges[j]] > numsig:
                 FT[j] = FT2
                 ct2 = ct2 + 1
                 edgesuc = edgesuc + 1
             else:
-                #print("request " + str(i) + " denied -- insufficient reach on edge " + str(randedges[j]))
                 break   
-       
-        if edgesuc == np.size(linkSNR[randedges],0):
+        if edgesuc == np.size(linkSNR[0][randedges],0):
             # generate new SNR value here
             for w in range(np.size(randedges)):
                 #estSNR = SNRnew(edgelens[randedges[w]], linkpert[randedges[w]], linkPch[randedges[w]], Lspans, np.count_nonzero(estlam[randedges[w]])+1 )
-                estSNR = SNRnewhet(edgelens[randedges[w]], linkPopt, Lspans, np.count_nonzero(estlam[randedges[w]])+1, 0.01 )
+                estSNR = SNRnew(edgelens[randedges[w]], np.count_nonzero(estlam[randedges[w]])+1, yearind)
                 if estSNR > FT[w]:
                     # link successfully established
-                    Um = Um + (prmn[randedges][w][prmnopt[randedges[w]]] - FT[w]) - (numsig*gsige[randedges[w]])  
+                    Um = Um + (prmn[yearind][randedges][w]- FT[w]) - (numsig*sigma[yearind][randedges[w]])  
                     edgesuc2 = edgesuc2 + 1
             if edgesuc2 == np.size(randedges):
                 # path successfully established
@@ -1288,12 +1220,12 @@ def varrtap2(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Ls
         print("Variance-aided availability = " + str(ava) + "%") 
         print("Variance-aided total traversal time = " + str('%.2f' % tottime) + "s")
     return ava, estlam, reqlams, tottime,conten, conf, ct128, ct64, ct16, ct4,ct2, failures, Um
-#test1, test2, test3, test4, test5, test6, test7, test8, test9, test10, test11, test12, test13 = varrtap(graphA, edgesA, testsrc, testdes, False,6.0,nodesA,numedgesA,edgelensA, LspansA)
-# test14 = test13/(test7 + test8 + test9 + test10 + test11)
+#test1, test2, test3, test4, test5, test6, test7, test8, test9, test10, test11, test12, test13 = varrtap2(edgesA, testsrc, testdes, False,5.0,nodesA,numedgesA,edgelensA, LspansA, 0)
+#test14 = test13/(test7 + test8 + test9 + test10 + test11)
 
 # %%
 # ========== this loop resets the network loading after numreqs, numtests times  ===========
-def testrout(graph, graphvar, edges, numtests,showres,numsig, numreq):
+def testrout(graph, edges, numtests,showres,numsig, numreq, yearind):
 
     avaf = np.empty([numtests,1])
     tottimef = np.empty([numtests,1])
@@ -1349,11 +1281,11 @@ def testrout(graph, graphvar, edges, numtests,showres,numsig, numreq):
             rsct, rdst = requestgen(graph)
             rsrct.append(rsct)
             rdest.append(rdst)
-    
-        avavp[i], _, _, tottimevp[i], contenvp[i], conf , ct128vp[i], ct64vp[i],ct16vp[i], ct4vp[i],ct2vp[i], failvp[i], Umvp[i]   = varrtap2(graphvared,edges,rsrct,rdest,showres,numsig,nodesA,numedgesA,edgelensA,LspansA)
-        avaf[i], _, _, contenf[i], ct128f[i], ct64f[i],ct16f[i], ct4f[i],ct2f[i], failf[i], noreachf[i], Umf[i]   = fmrta2(graph,edges,rsrct,rdest,showres,6.0,nodesA,numedgesA,edgelensA,fmSNR,LspansA)
-        avaf2[i], _, _,  contenf2[i], ct128f2[i], ct64f2[i],ct16f2[i], ct4f2[i],ct2f2[i], failf2[i], noreachf2[i], Umf2[i]   = fmrta2(graph,edges,rsrct,rdest,showres,4.0,nodesA,numedgesA,edgelensA,fmSNR,LspansA)
-        avaf3[i], _, _,  contenf3[i], ct128f3[i], ct64f3[i],ct16f3[i], ct4f3[i],ct2f3[i], failf3[i], noreachf3[i], Umf3[i]   = fmrta2(graph,edges,rsrct,rdest,showres,2.0,nodesA,numedgesA,edgelensA,fmSNR,LspansA)
+                                                                                                                                                                                                 
+        avavp[i], _, _, tottimevp[i], contenvp[i], conf , ct128vp[i], ct64vp[i],ct16vp[i], ct4vp[i],ct2vp[i], failvp[i], Umvp[i]   = varrtap2(edges,rsrct,rdest,showres,numsig,nodesA,numedgesA,edgelensA,LspansA,yearind)
+        avaf[i], _, _, contenf[i], ct128f[i], ct64f[i],ct16f[i], ct4f[i],ct2f[i], failf[i], noreachf[i], Umf[i]   = fmrta2(graph,edges,rsrct,rdest,showres,nodesA,numedgesA,edgelensA,fmSNR,LspansA, yearind)
+        #avaf2[i], _, _,  contenf2[i], ct128f2[i], ct64f2[i],ct16f2[i], ct4f2[i],ct2f2[i], failf2[i], noreachf2[i], Umf2[i]   = fmrta2(graph,edges,rsrct,rdest,showres,4.0,nodesA,numedgesA,edgelensA,fmSNR,LspansA)
+        #avaf3[i], _, _,  contenf3[i], ct128f3[i], ct64f3[i],ct16f3[i], ct4f3[i],ct2f3[i], failf3[i], noreachf3[i], Umf3[i]   = fmrta2(graph,edges,rsrct,rdest,showres,2.0,nodesA,numedgesA,edgelensA,fmSNR,LspansA)
        
     avaavevp = np.mean(avavp)
     ttavevp = np.mean(tottimevp)
@@ -1438,7 +1370,7 @@ if reqvar:
     Umnf = np.empty([nrs,1]) 
     start_time = time.time()
     for i in range(nrs):     
-        avaavef2[i], wavconavef2[i], failavef2[i] ,ttavef2[i], thrptf2[i], Umnf2[i], avaavef3[i], wavconavef3[i], failavef3[i] ,ttavef3[i], thrptf3[i], Umnf3[i],avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], Umnvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i], Umnf[i] = testrout(graphA, graphvar, edgesA, 20,False,numsig,numreq[i])
+        avaavef2[i], wavconavef2[i], failavef2[i] ,ttavef2[i], thrptf2[i], Umnf2[i], avaavef3[i], wavconavef3[i], failavef3[i] ,ttavef3[i], thrptf3[i], Umnf3[i],avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], Umnvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i], Umnf[i] = testrout(graphA, edgesA, 20,False,numsig,numreq[i],0)
     end_time = time.time()
     duration = time.time() - start_time
 else:
@@ -1472,7 +1404,7 @@ else:
     Umnf = np.empty([nrs,1]) 
     start_time = time.time()
     for i in range(nrs):
-        avaavef2[i], wavconavef2[i], failavef2[i] ,ttavef2[i], thrptf2[i], Umnf2[i], avaavef3[i], wavconavef3[i], failavef3[i] ,ttavef3[i], thrptf3[i], Umnf3[i],avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], Umnvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i], Umnf[i] = testrout(graphA, graphvar, edgesA, 10,False,numsig[i],numreq)
+        avaavef2[i], wavconavef2[i], failavef2[i] ,ttavef2[i], thrptf2[i], Umnf2[i], avaavef3[i], wavconavef3[i], failavef3[i] ,ttavef3[i], thrptf3[i], Umnf3[i],avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], Umnvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i], Umnf[i] = testrout(graphA, edgesA, 10,False,numsig[i],numreq, 0)
     end_time = time.time()
     duration = time.time() - start_time
 
