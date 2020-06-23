@@ -19,12 +19,13 @@ import matplotlib
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from sklearn.preprocessing import StandardScaler
+import cProfile
 
 datagen = False
 GPtraining = False
 numpoints = 100
 
-PchdBm = np.linspace(-10, 10, num = numpoints, dtype =float) 
+
 alpha = 0.2
 NLco = 1.27
 NchRS = 101
@@ -127,97 +128,145 @@ def getedgelen(graph,numedges):
     return edgelens 
 edgelensA = getedgelen(graphA, numedgesA)
 # 
-PchdBm = np.linspace(-10,10,numpoints)
-#ripplepertmax = 0.1  # for fixed perturbation between spans 
-#ripplepertmin = -0.1
-numlam = 20 # initial expected number of wavelengths 
 
-def marginsnrtest(edgelen, Lspans, numlam, NF, alpha):
-    Ls = Lspans
-    NchNy = numlam
-    D = Disp
-    gam = NLco
+
+# %% GNPy test function 
+PchdBm = np.linspace(-6,6,500)
+
+TRxb2b = 26 
+def GNtest(edgelen, Lspans, numlam, NF, alpha):
+    #################### equipment characteristics ####################
     lam = 1550 # operating wavelength centre [nm]
     f = 299792458/(lam*1e-9) # operating frequency [Hz]
     c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
     Rs = 32 # symbol rate [GBaud]
     h = 6.63*1e-34  # Planck's constant [Js]
-    #BWNy = (NchNy*Rs)/1e3 
-    BWNy = (157*Rs)/1e3 # full 5THz BW
-    allin = np.log((10**(alpha/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
+    NchNy = 157
+    BWNy = (NchNy*Rs)/1e3 # keep Nyquist spacing for non-saturated channel
+    #BWNy = (157*Rs)/1e3 # full 5THz BW
+    Ns = int(edgelen/Lspans)
+    al = alpha
+    D = Disp
+    gam = NLco
+    Ls = Lspans
+    allin = np.log((10**(al/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
     #gam = 1.27 # fibre nonlinearity coefficient [1/W*km]
     beta2 = (D*(lam**2))/(2*np.pi*c) # dispersion coefficient at given wavelength [ps^2/km]
     Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
-    Leffa = 1/(2*allin)  # the asymptotic effective length [km]  
-    #ripplepert = 0.1
-    #ripplepert = np.random.uniform(0.1,0.2,numspans+1)
-    numspans = int(edgelen/Lspans)
+    Leffa = 1/(2*allin)  # the asymptotic effective length [km]
+    LF = 1 # filtering effects coefficient, takes values 0 < LF <= 1 
+    Pch = 1e-3*10**(PchdBm/10)  # ^ [W]
+    Gwdm = (Pch*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
+    
+    ## equation 13, Gnli(0) for single-span Nyquist-WDM 
+    GnliEq13 = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))
+    numpch = len(PchdBm)
+    # ASE noise bit 
+    G = al*Ls
+    NFl = 10**(NF/10) 
+    Gl = 10**(G/10) 
+    OSNRmeasBW = 12.478*1e9 # OSNR measurement BW [Hz]
+    Pasech = NFl*h*f*(Gl - 1)*Rs*1e9*Ns # [W] the ASE noise power in one Nyquist channel across all spans
+    #Pasech = NFl*h*f*(Gl - 1)*OSNRmeasBW*Ns
+    # SNR calc + plotting
+    SNRanalytical = 10*np.log10((LF*Pch)/(Pasech*np.ones(numpch) + GnliEq13*Ns*Rs*1e9))
+    #SNRanalytical = 10*np.log10((LF*Pch)/(Pasech*np.ones(numpch) + GnliEq13*Ns*OSNRmeasBW))
+    Popt = PchdBm[np.argmax(SNRanalytical)]
+    
     Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] 
-    Popt = PchdBm[np.argmax(Pun)]                                                   
+    Poptgnmain = PchdBm[np.argmax(Pun)]
+    
+    return SNRanalytical, Popt, Poptgnmain
+
+testGNsnr, testGNPopt, testgnmainpopt = GNtest(300.0, 100.0, 157, 5.0, 0.2)
+testGNPysnr = np.genfromtxt(open("SNRGNPy.csv", "r"), delimiter=",", dtype =float)
+
+plt.plot(PchdBm, testGNsnr, label="me")
+#plt.plot(PchdBm, testGNPysnr, label="GNPy")
+#plt.plot(PchdBm, testGNmainsnr, label="GNmain")
+plt.legend()
+plt.xlabel("Pch (dBm)")
+plt.ylabel("SNR (dB)")
+plt.savefig('ZGNPycomparison.pdf', dpi=200,bbox_inches='tight')
+plt.show()
+
+print(testGNPopt)
+print(testgnmainpopt)
+
+
+# %%
+
+def marginsnrtest(edgelen, Lspans, numlam, NF, alpha):
+    lam = 1550 # operating wavelength centre [nm]
+    f = 299792458/(lam*1e-9) # operating frequency [Hz]
+    c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
+    Rs = 32 # symbol rate [GBaud]
+    h = 6.63*1e-34  # Planck's constant [Js]
+    NchNy = 157
+    BWNy = (NchNy*Rs)/1e3 # keep Nyquist spacing for non-saturated channel
+    #BWNy = (157*Rs)/1e3 # full 5THz BW
+    Numspans = int(edgelen/Lspans)
+    al = alpha
+    D = Disp
+    gam = NLco
+    Ls = Lspans
+    allin = np.log((10**(al/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
+    #gam = 1.27 # fibre nonlinearity coefficient [1/W*km]
+    beta2 = (D*(lam**2))/(2*np.pi*c) # dispersion coefficient at given wavelength [ps^2/km]
+    Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
+    Leffa = 1/(2*allin)  # the asymptotic effective length [km]
+    
+    numpch = len(PchdBm)
+    Pchsw = 1e-3*10**(PchdBm/10)  # ^ [W]
+    Gwdmsw = (Pchsw*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
+    GnliEq13sw = 1e24*(8/27)*(gam**2)*(Gwdmsw**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))
+    G = al*Ls
+    NFl = 10**(NF/10) 
+    Gl = 10**(G/10) 
+    Pasesw = NFl*h*f*(Gl - 1)*Rs*1e9 # [W] the ASE noise power in one Nyquist channel across all spans
+    snrsw = (Pchsw)/(Pasesw*np.ones(numpch) + GnliEq13sw*Rs*1e9)
+    Popt = PchdBm[np.argmax(snrsw)]                                                   
+    
     Gwdm = (1e-3*10**(Popt/10)*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
-    Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
-    Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
+    Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*Numspans
+    Pase = NF*h*f*(db2lin(alpha*Ls) - 1)*Rs*1e9*Numspans
     Pch = 1e-3*10**(Popt/10) 
     snr = (  (Pch/(Pase + Gnli*Rs*1e9))**(-1) + db2lin(26)**(-1)  )**(-1)
-    return lin2db(snr) 
+    return lin2db(snr)
 def fmdatagentest(edgelens,Lspans, numlam, NF, alpha):
     marginSNR = np.empty([np.size(edgelens),1])
     for i in range(np.size(edgelens)):
         marginSNR[i] = marginsnrtest(edgelens[i],Lspans, numlam, NF, alpha)
     return marginSNR
 
-# =============================================================================
-# testlen = 4800.0
+testlen = 4800.0
 years = np.linspace(0,10,21)
 numlam = np.linspace(30, 150, np.size(years))
 NF = np.linspace(4.5,5.5,np.size(years))
 alpha = 0.2 + 0.00163669*years
 trxaging = ((1 + 0.05*years)*2).reshape(np.size(years),1)
 oxcaging = ((0.03 + 0.007*years)*2).reshape(np.size(years),1)
-# 
-# testsnrnli = np.empty([np.size(years),1])
-# nliampmargin = np.empty([np.size(years),1])
-# testsnrjustfibre = np.empty([np.size(years),1])
-# 
-# for i in range(np.size(years)):
-#     #testsnrnli[i] = fmdatagentest(edgelensA[testi], LspansA, numlam[i], NF[i])
-#     testsnrnli[i] = marginsnrtest(testlen, LspansA, numlam[i], NF[i], alpha[i])
-#     nliampmargin[i] = testsnrnli[0] - testsnrnli[i]
-#     
 
-# testsnrnli = testsnrnli -  1.03*np.ones([np.size(years),1])
-# testfinalsnr = ( testsnrnli - (trxaging + oxcaging)) 
-# 
-# plt.plot(years, nliampmargin, label = 'NLI + NF + FA')
-# plt.plot(years, trxaging, label = 'TRx aging')
-# plt.plot(years, oxcaging, label = 'node filter aging')
-# plt.legend()
-# plt.xlabel("years")
-# plt.ylabel("margin (dB)")
-# plt.savefig('marginvaryearsFA.pdf', dpi=200,bbox_inches='tight')
-# plt.show()
-# 
-# plt.plot(years, testsnrnli, label = 'SNR with NF, NLI + FA')
-# plt.plot(years, testfinalsnr, label = 'SNR - TRx + filtering')
-# plt.xlabel("years")
-# plt.ylabel("SNR (dB)")
-# plt.legend()
-# plt.savefig('marginvarsnr.pdf', dpi=200,bbox_inches='tight')
-# plt.show()
-# =============================================================================
+testsnrnli = np.empty([np.size(years),1])
+nliampmargin = np.empty([np.size(years),1])
+testsnrjustfibre = np.empty([np.size(years),1])
 
+for i in range(np.size(years)):
+    testsnrnli[i] = marginsnrtest(testlen, LspansA, numlam[i], NF[i], alpha[i])
+testfinalsnr = ( testsnrnli - (trxaging + oxcaging)) 
+plt.plot(years, testsnrnli, label = 'SNR with NF, NLI + FA')
+plt.plot(years, testfinalsnr, label = 'SNR - TRx + filtering')
+plt.xlabel("years")
+plt.ylabel("SNR (dB)")
+plt.legend()
+plt.savefig('marginvarsnr.pdf', dpi=200,bbox_inches='tight')
+plt.show()
 # %% find the worst-case margin required
 
-#snrmar = fmdatagentest(edgelensA, LspansA, numlam[-1], NF[-1], alpha[-1])
-#snrpl =  fmdatagentest(edgelensA, LspansA, numlam[0], NF[0], alpha[0])
-
-#fmS = snrpl - snrmar + trxaging[-1] + oxcaging[-1]  # fixed worst-case S margin
 fmD = np.empty([numedgesA,1])
 for i in range(numedgesA):
     fmD[i] = 0.08*(edgelensA[i]/1000.0)*5
 fmT = trxaging[-1] + oxcaging[-1] + fmD
-
-
 
 # %%
 numyears = np.size(years)
@@ -238,15 +287,27 @@ if datagen:
         c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
         Rs = 32 # symbol rate [GBaud]
         h = 6.63*1e-34  # Planck's constant [Js]
-        #BWNy = (NchNy*Rs)/1e3 
-        BWNy = (157*Rs)/1e3 # full 5THz BW
+        BWNy = (NchNy*Rs)/1e3 
+        #BWNy = (157*Rs)/1e3 # full 5THz BW
         allin = np.log((10**(alpha/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
         beta2 = (D*(lam**2))/(2*np.pi*c) # dispersion coefficient at given wavelength [ps^2/km]
         Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
         Leffa = 1/(2*allin)  # the asymptotic effective length [km]  
         numspans = int(edgelen/Lspans)
-        Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] 
-        Popt = PchdBm[np.argmax(Pun)]                                                   
+        
+        numpch = len(PchdBm)
+        Pchsw = 1e-3*10**(PchdBm/10)  # ^ [W]
+        Gwdmsw = (Pchsw*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
+        GnliEq13sw = 1e24*(8/27)*(gam**2)*(Gwdmsw**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))
+        G = alpha*Ls
+        NFl = 10**(NF/10) 
+        Gl = 10**(G/10) 
+        Pasesw = NFl*h*f*(Gl - 1)*Rs*1e9 # [W] the ASE noise power in one Nyquist channel across all spans
+        snrsw = (Pchsw)/(Pasesw*np.ones(numpch) + GnliEq13sw*Rs*1e9)
+        Popt = PchdBm[np.argmax(snrsw)]     
+        #Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] 
+        #Popt = PchdBm[np.argmax(Pun)]  
+        
         Gwdm = (1e-3*10**(Popt/10)*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
         Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
         Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
@@ -343,8 +404,8 @@ def GPtrain(x,y):
 
 if GPtraining:
     x = np.linspace(0,numpoints-1,numpoints)
-    prmn = np.empty([numyears,numedgesA,1])
-    sigma = np.empty([numyears,numedgesA,1])
+    prmn = np.empty([numyears,numedgesA])
+    sigma = np.empty([numyears,numedgesA])
     for i in range(numyears):
         y = linkSNR[i]
         prmnt = np.empty([np.size(y,0),np.size(y,1)])
@@ -367,8 +428,10 @@ if GPtraining:
         elif graphA == graphAL:
             np.savetxt('prmntsAL' + str(i) + '.csv', prmnt, delimiter=',') 
             np.savetxt('sigtsAL' + str(i) + '.csv', sigmat, delimiter=',')
-        prmn[i] = prmnt
-        sigma[i] = sigmat
+        for j in range(numedgesA):
+            prmn[i][j] = np.mean(prmnt[j])
+        #prmn[i] = prmnt
+        sigma[i] = sigmat.reshape(numedgesA)
 
 
 # %% import trained GP models
@@ -403,15 +466,28 @@ def fmsnr(edgelen, Lspans, numlam, NF, alpha, yearind):
         c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
         Rs = 32 # symbol rate [GBaud]
         h = 6.63*1e-34  # Planck's constant [Js]
-        #BWNy = (NchNy*Rs)/1e3 
-        BWNy = (157*Rs)/1e3 # full 5THz BW
+        BWNy = (NchNy*Rs)/1e3 
+        #BWNy = (157*Rs)/1e3 # full 5THz BW
         allin = np.log((10**(alpha/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
         beta2 = (D*(lam**2))/(2*np.pi*c) # dispersion coefficient at given wavelength [ps^2/km]
         Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
         Leffa = 1/(2*allin)  # the asymptotic effective length [km]  
         numspans = int(edgelen/Lspans)
-        Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] 
-        Popt = PchdBm[np.argmax(Pun)]                                                   
+        
+        #Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] 
+        #Popt = PchdBm[np.argmax(Pun)]        
+        
+        numpch = len(PchdBm)
+        Pchsw = 1e-3*10**(PchdBm/10)  # ^ [W]
+        Gwdmsw = (Pchsw*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
+        GnliEq13sw = 1e24*(8/27)*(gam**2)*(Gwdmsw**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))
+        G = alpha*Ls
+        NFl = 10**(NF/10) 
+        Gl = 10**(G/10) 
+        Pasesw = NFl*h*f*(Gl - 1)*Rs*1e9 # [W] the ASE noise power in one Nyquist channel across all spans
+        snrsw = (Pchsw)/(Pasesw*np.ones(numpch) + GnliEq13sw*Rs*1e9)
+        Popt = PchdBm[np.argmax(snrsw)]  
+        
         Gwdm = (1e-3*10**(Popt/10)*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
         Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
         Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
@@ -473,15 +549,29 @@ def SNRnew(edgelen,numlam, yearind):
         c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
         Rs = 32 # symbol rate [GBaud]
         h = 6.63*1e-34  # Planck's constant [Js]
-        #BWNy = (NchNy*Rs)/1e3 
-        BWNy = (157*Rs)/1e3 # full 5THz BW
+        BWNy = (NchNy*Rs)/1e3 
+        #BWNy = (157*Rs)/1e3 # full 5THz BW
         allin = np.log((10**(alpha[yearind]/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
         beta2 = (D*(lam**2))/(2*np.pi*c) # dispersion coefficient at given wavelength [ps^2/km]
         Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
         Leffa = 1/(2*allin)  # the asymptotic effective length [km]  
         numspans = int(edgelen/Ls)
-        Pun = GNmain(Ls, 1, numlam, 101, 201, alpha[yearind], Disp, PchdBm, NF[yearind], NLco,False,numpoints)[0] 
-        Popt = PchdBm[np.argmax(Pun)]                                                   
+        
+        #Pun = GNmain(Ls, 1, numlam, 101, 201, alpha[yearind], Disp, PchdBm, NF[yearind], NLco,False,numpoints)[0] 
+        
+        numpch = len(PchdBm)
+        Pchsw = 1e-3*10**(PchdBm/10)  # ^ [W]
+        Gwdmsw = (Pchsw*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
+        GnliEq13sw = 1e24*(8/27)*(gam**2)*(Gwdmsw**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))
+        G = alpha[yearind]*Ls
+        NFl = 10**(NF[yearind]/10) 
+        Gl = 10**(G/10) 
+        Pasesw = NFl*h*f*(Gl - 1)*Rs*1e9 # [W] the ASE noise power in one Nyquist channel across all spans
+        snrsw = (Pchsw)/(Pasesw*np.ones(numpch) + GnliEq13sw*Rs*1e9)
+        Popt = PchdBm[np.argmax(snrsw)]  
+        
+        
+        Popt = PchdBm[np.argmax(snrsw)]                                                   
         Gwdm = (1e-3*10**(Popt/10)*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
         Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
         Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*numspans
@@ -492,7 +582,9 @@ def SNRnew(edgelen,numlam, yearind):
         sdnorm = sd[yearind]*(edgelen/1000.0)
         return lin2db(snr) + np.random.normal(0,sdnorm,1)
 
-test = SNRnew(edgelensA[0],40,0)
+#test = SNRnew(edgelensA[0],40,0)
+
+test2 = SNRnew(edgelensA[0],40,0)
 
 FT2 = 0.24
 FT4 = 3.25 # all correspond to BER of 2e-2
@@ -677,7 +769,7 @@ def removekey(d, keysrc, keydes):
 def fmrta2(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, Lspans, yearind):
     dis = []
     path = []
-    numnodes = np.size(nodes)
+    numnodes = len(nodes)
     if graphA == graphN:
         for i in range(numnodes):    
             for j in range(numnodes): 
@@ -721,7 +813,7 @@ def fmrta2(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, 
                     path.append(p)
     pathdists = []
     links = []                                                
-    for i in range(np.size(path)):
+    for i in range(len(path)):
         pathdists.append(getlinklen(path[i],graphnormA,edges)[0])
         links.append(getlinklen(path[i],graphA,edges)[1])
     estlam = np.zeros([numedges,int(numlam[-1])]) # 0 for empty, 1 for occupied
@@ -735,7 +827,7 @@ def fmrta2(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, 
     ct4 = 0
     ct2 = 0
     Um = 0 # unallocated margin
-    numreq = np.size(Rsource)
+    numreq = len(Rsource)
     for i in range(numreq):
         # update for online learning 
         #  choose random source and destination nodes 
@@ -745,12 +837,12 @@ def fmrta2(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, 
             if path[0] == src and path[-1] == dest:
                 return True  
         
-        randpathind = [j for j in range(np.size(path)) if  srcdestcheck(path[j], Rsource[i], Rdest[i])][0]
+        randpathind = [j for j in range(len(path)) if  srcdestcheck(path[j], Rsource[i], Rdest[i])][0]
         #print("selected request index: " + str(randpathind))
         randedges = links[randpathind]  # selected edges for request 
         shptcon = False
         lamconten = False
-        testlamslot = [np.where(estlam[randedges[k]]==0) for k in range(np.size(randedges))]
+        testlamslot = [np.where(estlam[randedges[k]]==0) for k in range(len(randedges))]
         for g in range(np.size(randedges)):
             if np.size(testlamslot[g]) == 0:  # if randedges[g] is blocked 
                 if shptcon:
@@ -852,6 +944,11 @@ def fmrta2(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, 
     return ava, estlam, reqlams, conten,ct128, ct64, ct16, ct4,ct2, failures, noreach, Um
  
 test21, test22, test23, test24, test25, test26, test27, test28, test29, test210, test211, test212 = fmrta2(graphA, edgesA, testsrc, testdes, False,nodesA,numedgesA,edgelensA,fmSNR, LspansA, 0)
+
+# %%
+
+#cProfile.run('fmrta2(graphA, edgesA, testsrc, testdes, False,nodesA,numedgesA,edgelensA,fmSNR, LspansA, 0)')
+
 
 # %%
 def varrtap(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans,yearind):
@@ -1224,6 +1321,202 @@ def varrtap2(edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans,y
 #test14 = test13/(test7 + test8 + test9 + test10 + test11)
 
 # %%
+def gprout(edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans,yearind):
+    dis = []
+    path = []
+    numnodes = np.size(nodes)
+    if graphA == graphN:
+        for i in range(numnodes):    
+            for j in range(numnodes): 
+                d, p = dijkstra({'1':{'2':2100,'3':3000,'8':4800},'2':{'1':2100,'3':1200,'4':1500},'3':{'1':3000,'2':1200,'6':3600},    
+                 '4':{'2':1500,'5':1200,'11':3900},'5':{'4':1200,'6':2400,'7':1200}, '6':{'3':3600,'5':2400,'10':2100,'14':3600},
+                 '7':{'5':1200,'8':1500,'10':2700}, '8':{'1':4800,'7':1500,'9':1500}, '9':{'8':1500,'10':1500,'12':600,'13':600},
+                 '10':{'6':2100,'7':2700,'9':1500}, '11':{'4':3900,'12':1200,'13':1500}, '12':{'9':600,'11':1200,'14':600},
+                 '13':{'9':600,'11':1500,'14':300}, '14':{'6':3600,'12':600,'13':300}
+                 }, nodes[i], nodes[j])
+                if i == j:
+                    continue  # don't include lightpaths of length 0
+                else:
+                    dis.append(d)
+                    path.append(p)
+        graphvar = {'1':{'2':2100,'3':3000,'8':4800},'2':{'1':2100,'3':1200,'4':1500},'3':{'1':3000,'2':1200,'6':3600},    
+                 '4':{'2':1500,'5':1200,'11':3900},'5':{'4':1200,'6':2400,'7':1200}, '6':{'3':3600,'5':2400,'10':2100,'14':3600},
+                 '7':{'5':1200,'8':1500,'10':2700}, '8':{'1':4800,'7':1500,'9':1500}, '9':{'8':1500,'10':1500,'12':600,'13':600},
+                 '10':{'6':2100,'7':2700,'9':1500}, '11':{'4':3900,'12':1200,'13':1500}, '12':{'9':600,'11':1200,'14':600},
+                 '13':{'9':600,'11':1500,'14':300}, '14':{'6':3600,'12':600,'13':300}
+                 }  
+    elif graphA == graphD:
+        for i in range(numnodes):    
+            for j in range(numnodes): 
+                d, p = dijkstra({'1':{'2':400,'3':160,'4':160},'2':{'1':400,'4':400,'5':240},'3':{'1':160,'4':160,'6':320},    
+                '4':{'1':160,'2':400,'3':160,'5':320,'7':240,'10':400},'5':{'2':240,'4':320,'10':480,'11':320}, '6':{'3':320,'7':80,'8':80},
+                '7':{'4':240,'6':80,'9':80}, '8':{'6':80,'9':80}, '9':{'7':80,'8':80,'10':240},
+                '10':{'4':400,'5':480,'9':240,'11':320,'12':240}, '11':{'5':320,'10':320,'12':240,'14':240}, '12':{'10':240,'11':240,'13':80},
+                '13':{'12':80,'14':160}, '14':{'11':240,'13':160}
+                }  , nodes[i], nodes[j])
+                if i == j:
+                    continue  # don't include lightpaths of length 0
+                else:
+                    dis.append(d)
+                    path.append(p)
+        graphvar = {'1':{'2':400,'3':160,'4':160},'2':{'1':400,'4':400,'5':240},'3':{'1':160,'4':160,'6':320},    
+                '4':{'1':160,'2':400,'3':160,'5':320,'7':240,'10':400},'5':{'2':240,'4':320,'10':480,'11':320}, '6':{'3':320,'7':80,'8':80},
+                '7':{'4':240,'6':80,'9':80}, '8':{'6':80,'9':80}, '9':{'7':80,'8':80,'10':240},
+                '10':{'4':400,'5':480,'9':240,'11':320,'12':240}, '11':{'5':320,'10':320,'12':240,'14':240}, '12':{'10':240,'11':240,'13':80},
+                '13':{'12':80,'14':160}, '14':{'11':240,'13':160}
+                }  
+    elif graphA == graphAL:
+        for i in range(numnodes):    
+            for j in range(numnodes): 
+                d, p = dijkstra({'1':{'4':1200,'5':1600},'2':{'3':1100,'7':300},'3':{'2':1100,'8':300},    
+                '4':{'1':1200,'5':1500,'9':500},'5':{'1':1600,'4':1500,'6':900}, '6':{'5':900,'7':700,'11':1000},
+                '7':{'2':300,'6':700,'10':1100}, '8':{'3':300,'10':900}, '9':{'4':500,'11':2200},
+                '10':{'7':1100,'8':900,'11':1100}, '11':{'6':1000,'9':2200,'10':1100}
+                }  , nodes[i], nodes[j])
+                if i == j:
+                    continue  # don't include lightpaths of length 0
+                else:
+                    dis.append(d)
+                    path.append(p)
+        graphvar = {'1':{'4':1200,'5':1600},'2':{'3':1100,'7':300},'3':{'2':1100,'8':300},    
+                '4':{'1':1200,'5':1500,'9':500},'5':{'1':1600,'4':1500,'6':900}, '6':{'5':900,'7':700,'11':1000},
+                '7':{'2':300,'6':700,'10':1100}, '8':{'3':300,'10':900}, '9':{'4':500,'11':2200},
+                '10':{'7':1100,'8':900,'11':1100}, '11':{'6':1000,'9':2200,'10':1100}
+                }
+    pathdists = []
+    links = []                                                
+    for i in range(np.size(path)):
+        pathdists.append(getlinklen(path[i],graphnormA,edges)[0])
+        links.append(getlinklen(path[i],graphvar,edges)[1])
+    
+    estlam = np.zeros([numedges,int(numlam[-1])]) # 0 for empty, 1 for occupied
+    reqlams = 0
+    conten = 0
+    failures = 0
+    ct128 = 0
+    ct64 = 0
+    ct16 =0 
+    ct4 = 0
+    ct2 = 0
+    Um = 0
+    numreq = np.size(Rsource)
+    randdist = []
+    conf = []
+    for i in range(numreq):
+        # update for online learning 
+        #  choose random source and destination nodes 
+        #Rsource, Rdest = requestgen(graph)
+        # find corresponding path index
+        def srcdestcheck(path,src,dest):
+            if path[0] == src and path[-1] == dest:
+                return True  
+        randpathind = [j for j in range(np.size(path)) if  srcdestcheck(path[j], Rsource[i], Rdest[i])][0]
+        #print("selected request index: " + str(randpathind))
+        randedges = links[randpathind]  # selected edges for request 
+        randdist.append(sum(pathdists[randpathind]))
+        lamconten = False
+        shptcon = False
+        testlamslot = [np.where(estlam[randedges[k]]==0) for k in range(np.size(randedges))]
+        for g in range(np.size(randedges)):
+            if np.size(testlamslot[g]) == 0:
+                if shptcon:
+                    break
+                target = randedges[g]             
+                for y in nodesA: # find source and destination nodes for link randedges[g]
+                    if target in [list(edgesA.get(y).values())][0]:
+                        srcnode = y
+                        desnode = list(edgesA.get(y).keys())[list(edgesA.get(y).values()).index(target)]
+                        break 
+                if graphA == graphN:
+                    graphA2 = removekey({'1':{'2':2100,'3':3000,'8':4800},'2':{'1':2100,'3':1200,'4':1500},'3':{'1':3000,'2':1200,'6':3600},    
+                 '4':{'2':1500,'5':1200,'11':3900},'5':{'4':1200,'6':2400,'7':1200}, '6':{'3':3600,'5':2400,'10':2100,'14':3600},
+                 '7':{'5':1200,'8':1500,'10':2700}, '8':{'1':4800,'7':1500,'9':1500}, '9':{'8':1500,'10':1500,'12':600,'13':600},
+                 '10':{'6':2100,'7':2700,'9':1500}, '11':{'4':3900,'12':1200,'13':1500}, '12':{'9':600,'11':1200,'14':600},
+                 '13':{'9':600,'11':1500,'14':300}, '14':{'6':3600,'12':600,'13':300}
+                 }, srcnode, desnode) 
+                elif graphA == graphD:
+                    graphA2 = removekey({'1':{'2':400,'3':160,'4':160},'2':{'1':400,'4':400,'5':240},'3':{'1':160,'4':160,'6':320},    
+                '4':{'1':160,'2':400,'3':160,'5':320,'7':240,'10':400},'5':{'2':240,'4':320,'10':480,'11':320}, '6':{'3':320,'7':80,'8':80},
+                '7':{'4':240,'6':80,'9':80}, '8':{'6':80,'9':80}, '9':{'7':80,'8':80,'10':240},
+                '10':{'4':400,'5':480,'9':240,'11':320,'12':240}, '11':{'5':320,'10':320,'12':240,'14':240}, '12':{'10':240,'11':240,'13':80},
+                '13':{'12':80,'14':160}, '14':{'11':240,'13':160}
+                } , srcnode, desnode)  # remove this link from the graph and find shortest path with Dijkstra        
+                elif graphA == graphAL:
+                    graphA2 = removekey({'1':{'4':1200,'5':1600},'2':{'3':1100,'7':300},'3':{'2':1100,'8':300},    
+                '4':{'1':1200,'5':1500,'9':500},'5':{'1':1600,'4':1500,'6':900}, '6':{'5':900,'7':700,'11':1000},
+                '7':{'2':300,'6':700,'10':1100}, '8':{'3':300,'10':900}, '9':{'4':500,'11':2200},
+                '10':{'7':1100,'8':900,'11':1100}, '11':{'6':1000,'9':2200,'10':1100}
+                }, srcnode, desnode)  # remove this link from the graph and find shortest path with Dijkstra 
+                dist2, path2 = dijkstra(graphA2, Rsource[i], Rdest[i])
+                link2 = (getlinklen(path2,graphA,edges)[1]) # converts nodes traversed to edges traversed = 'new randedges'
+                shptcon = True
+        if shptcon:
+            testlamslot2 = [np.where(estlam[link2[p]]==0) for p in range(np.size(link2))]
+            for h in range(np.size(link2)):
+                if np.size(testlamslot2[h]) == 0: # second-shortest also blocked    
+                    lamconten = True
+                else: # if second-shortest not blocked, replace randedges with link2
+                    randedges = link2
+        if lamconten:
+            conten = conten + 1
+            continue
+        lamslot = [np.where(estlam[randedges[k]]==0)[0][0] for k in range(np.size(randedges))] # first available wavelength slot for this edge
+        # need to check SNR for all the edges in the path
+        edgesuc = 0
+        edgesuc2 = 0
+        FT = np.zeros(np.size(linkSNR[0][randedges],0))
+        for j in range(np.size(linkSNR[0][randedges],0)): # for each edge in the path
+            #if linkSNR[randedges][j][prmnopt[randedges[j]]] > FT:
+        
+            if (prmn[yearind][randedges][j] - FT128)/sigma[yearind][randedges[j]] > numsig:
+                FT[j] = FT128
+                ct128 = ct128 + 1
+                edgesuc = edgesuc + 1
+            elif (prmn[yearind][randedges][j] - FT64)/sigma[yearind][randedges[j]] > numsig:   
+                FT[j] = FT64
+                ct64 = ct64 + 1
+                edgesuc = edgesuc + 1
+            elif (prmn[yearind][randedges][j] - FT16)/sigma[yearind][randedges[j]] > numsig:
+                FT[j] = FT16
+                ct16 = ct16 + 1
+                edgesuc = edgesuc + 1
+            elif (prmn[yearind][randedges][j] - FT4)/sigma[yearind][randedges[j]] > numsig:
+                FT[j] = FT4
+                ct4 = ct4 + 1
+                edgesuc = edgesuc + 1
+            elif (prmn[yearind][randedges][j] - FT2)/sigma[yearind][randedges[j]] > numsig:
+                FT[j] = FT2
+                ct2 = ct2 + 1
+                edgesuc = edgesuc + 1
+            else:
+                break   
+        if edgesuc == np.size(linkSNR[0][randedges],0):
+            # generate new SNR value here
+            for w in range(np.size(randedges)):
+                #estSNR = SNRnew(edgelens[randedges[w]], linkpert[randedges[w]], linkPch[randedges[w]], Lspans, np.count_nonzero(estlam[randedges[w]])+1 )
+                estSNR = SNRnew(edgelens[randedges[w]], np.count_nonzero(estlam[randedges[w]])+1, yearind)
+                if estSNR > FT[w]:
+                    # link successfully established
+                    Um = Um + (prmn[yearind][randedges][w]- FT[w]) - (numsig*sigma[yearind][randedges[w]])  
+                    edgesuc2 = edgesuc2 + 1
+            if edgesuc2 == np.size(randedges):
+                # path successfully established
+                reqlams = reqlams + 1
+                for l in range(len(randedges)):
+                    estlam[randedges[l]][lamslot[l]] = 1
+            else: 
+                # link not established
+                failures = failures + 1
+    ava = (reqlams/numreq)*100 
+    tottime = ((sum(randdist)*1e3*1.468)/299792458)[0]
+    if showres:
+        print("Variance-aided availability = " + str(ava) + "%") 
+        print("Variance-aided total traversal time = " + str('%.2f' % tottime) + "s")
+    return ava, estlam, reqlams, tottime,conten, conf, ct128, ct64, ct16, ct4,ct2, failures, Um
+
+
+
+# %%
 # ========== this loop resets the network loading after numreqs, numtests times  ===========
 def testrout(graph, edges, numtests,showres,numsig, numreq, yearind):
 
@@ -1239,29 +1532,7 @@ def testrout(graph, edges, numtests,showres,numsig, numreq, yearind):
     noreachf = np.empty([numtests,1])
     Umf = np.empty([numtests,1])
     
-    avaf2 = np.empty([numtests,1])
-    tottimef2 = np.empty([numtests,1])
-    contenf2 = np.empty([numtests,1])
-    ct128f2 = np.empty([numtests,1])
-    ct64f2 = np.empty([numtests,1])
-    ct16f2 = np.empty([numtests,1])
-    ct4f2 = np.empty([numtests,1])
-    ct2f2 = np.empty([numtests,1])
-    failf2 = np.empty([numtests,1])
-    noreachf2 = np.empty([numtests,1])
-    Umf2 = np.empty([numtests,1])
     
-    avaf3 = np.empty([numtests,1])
-    tottimef3 = np.empty([numtests,1])
-    contenf3 = np.empty([numtests,1])
-    ct128f3 = np.empty([numtests,1])
-    ct64f3 = np.empty([numtests,1])
-    ct16f3 = np.empty([numtests,1])
-    ct4f3 = np.empty([numtests,1])
-    ct2f3 = np.empty([numtests,1])
-    failf3 = np.empty([numtests,1])
-    noreachf3 = np.empty([numtests,1])
-    Umf3 = np.empty([numtests,1])
     
     avavp = np.empty([numtests,1])
     tottimevp = np.empty([numtests,1])
@@ -1283,6 +1554,7 @@ def testrout(graph, edges, numtests,showres,numsig, numreq, yearind):
             rdest.append(rdst)
                                                                                                                                                                                                  
         avavp[i], _, _, tottimevp[i], contenvp[i], conf , ct128vp[i], ct64vp[i],ct16vp[i], ct4vp[i],ct2vp[i], failvp[i], Umvp[i]   = varrtap2(edges,rsrct,rdest,showres,numsig,nodesA,numedgesA,edgelensA,LspansA,yearind)
+        avavp[i], _, _, tottimevp[i], contenvp[i], conf , ct128vp[i], ct64vp[i],ct16vp[i], ct4vp[i],ct2vp[i], failvp[i], Umvp[i]   = gprout(edges,rsrct,rdest,showres,numsig,nodesA,numedgesA,edgelensA,LspansA,yearind)
         avaf[i], _, _, contenf[i], ct128f[i], ct64f[i],ct16f[i], ct4f[i],ct2f[i], failf[i], noreachf[i], Umf[i]   = fmrta2(graph,edges,rsrct,rdest,showres,nodesA,numedgesA,edgelensA,fmSNR,LspansA, yearind)
         #avaf2[i], _, _,  contenf2[i], ct128f2[i], ct64f2[i],ct16f2[i], ct4f2[i],ct2f2[i], failf2[i], noreachf2[i], Umf2[i]   = fmrta2(graph,edges,rsrct,rdest,showres,4.0,nodesA,numedgesA,edgelensA,fmSNR,LspansA)
         #avaf3[i], _, _,  contenf3[i], ct128f3[i], ct64f3[i],ct16f3[i], ct4f3[i],ct2f3[i], failf3[i], noreachf3[i], Umf3[i]   = fmrta2(graph,edges,rsrct,rdest,showres,2.0,nodesA,numedgesA,edgelensA,fmSNR,LspansA)
@@ -1296,14 +1568,7 @@ def testrout(graph, edges, numtests,showres,numsig, numreq, yearind):
     wavconavef = np.mean(contenf/numreq)*100 # express as a %
     failavef = np.mean(failf/numreq)*100 # express as a %
     norchavef = np.mean(noreachf/numreq)*100
-    avaavef2 = np.mean(avaf2)
-    ttavef2 = np.mean(tottimef2)
-    wavconavef2 = np.mean(contenf2/numreq)*100 # express as a %
-    failavef2 = np.mean(failf2/numreq)*100 # express as a %
-    avaavef3 = np.mean(avaf3)
-    ttavef3 = np.mean(tottimef3)
-    wavconavef3 = np.mean(contenf3/numreq)*100 # express as a %
-    failavef3 = np.mean(failf3/numreq)*100 # express as a %
+    
     
     ct128avevp = np.mean(ct128vp)
     ct64avevp = np.mean(ct64vp)
@@ -1315,46 +1580,24 @@ def testrout(graph, edges, numtests,showres,numsig, numreq, yearind):
     ct16avef = np.mean(ct16f)
     ct4avef = np.mean(ct4f)
     ct2avef = np.mean(ct2f)
-    ct128avef2 = np.mean(ct128f2)
-    ct64avef2 = np.mean(ct64f2)
-    ct16avef2 = np.mean(ct16f2)
-    ct4avef2 = np.mean(ct4f2)
-    ct2avef2 = np.mean(ct2f2)
-    ct128avef3 = np.mean(ct128f3)
-    ct64avef3 = np.mean(ct64f3)
-    ct16avef3 = np.mean(ct16f3)
-    ct4avef3 = np.mean(ct4f3)
-    ct2avef3 = np.mean(ct2f3)
+    
     
     Umnf = np.mean(Umf)/(ct128avef + ct64avef + ct16avef + ct4avef +  ct2avef)
-    Umnf2 = np.mean(Umf2)/(ct128avef2 + ct64avef2 + ct16avef2 + ct4avef2 +  ct2avef2)
-    Umnf3 = np.mean(Umf3)/(ct128avef3 + ct64avef3 + ct16avef3 + ct4avef3 +  ct2avef3)
+
     Umnvp = np.mean(Umvp)/(ct128avevp + ct64avevp + ct16avevp + ct4avevp +  ct2avevp)
     
     thrptvp = 2*(ct128avevp*7 + ct64avevp*6 + ct16avevp*4 + ct4avevp*2 + ct2avevp)/(ct128avevp + ct64avevp + ct16avevp + ct4avevp + ct2avevp)
     thrptf = 2*(ct128avef*7 + ct64avef*6 + ct16avef*4 + ct4avef*2 + ct2avef)/(ct128avef + ct64avef + ct16avef + ct4avef +  ct2avef)
-    thrptf2 = 2*(ct128avef2*7 + ct64avef2*6 + ct16avef2*4 + ct4avef2*2 + ct2avef2)/(ct128avef2 + ct64avef2 + ct16avef2 + ct4avef2 + ct2avef2)
-    thrptf3 = 2*(ct128avef3*7 + ct64avef3*6 + ct16avef3*4 + ct4avef3*2 + ct2avef3)/(ct128avef3 + ct64avef3 + ct16avef3 + ct4avef3 + ct2avef3) 
     
-    return avaavef2, wavconavef2, failavef2 ,ttavef2, thrptf2, Umnf2, avaavef3, wavconavef3, failavef3 ,ttavef3, thrptf3, Umnf3, avaavevp, wavconavevp, failavevp ,ttavevp, thrptvp, Umnvp,  avaavef, wavconavef, failavef ,ttavef, thrptf, norchavef, Umnf 
+    
+    return avaavevp, wavconavevp, failavevp ,ttavevp, thrptvp, Umnvp,  avaavef, wavconavef, failavef ,ttavef, thrptf, norchavef, Umnf 
 
 reqvar = True
 if reqvar:
-    numreq = np.linspace(150,500,21,dtype=int)
-    numsig = 0.5
+    #numreq = np.linspace(150,500,21,dtype=int)
+    numreq = np.linspace(500,1500,6,dtype=int)
+    numsig = 5.0
     nrs = np.size(numreq)
-    avaavef2 = np.empty([nrs,1])
-    wavconavef2 = np.empty([nrs,1])
-    failavef2 = np.empty([nrs,1])
-    ttavef2 = np.empty([nrs,1])
-    thrptf2 = np.empty([nrs,1]) 
-    Umnf2 = np.empty([nrs,1]) 
-    avaavef3 = np.empty([nrs,1])
-    wavconavef3 = np.empty([nrs,1])
-    failavef3 = np.empty([nrs,1])
-    ttavef3 = np.empty([nrs,1])
-    thrptf3 = np.empty([nrs,1]) 
-    Umnf3 = np.empty([nrs,1]) 
     avaavevp = np.empty([nrs,1])
     wavconavevp = np.empty([nrs,1])
     failavevp = np.empty([nrs,1])
@@ -1370,25 +1613,14 @@ if reqvar:
     Umnf = np.empty([nrs,1]) 
     start_time = time.time()
     for i in range(nrs):     
-        avaavef2[i], wavconavef2[i], failavef2[i] ,ttavef2[i], thrptf2[i], Umnf2[i], avaavef3[i], wavconavef3[i], failavef3[i] ,ttavef3[i], thrptf3[i], Umnf3[i],avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], Umnvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i], Umnf[i] = testrout(graphA, edgesA, 20,False,numsig,numreq[i],0)
+        avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], Umnvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i], Umnf[i] = testrout(graphA, edgesA, 20,False,numsig,numreq[i],0)
+        print("completed iteration " + str(i))
     end_time = time.time()
     duration = time.time() - start_time
 else:
     numreq = 200
     numsig = np.linspace(0.5,6.0,21)
     nrs = np.size(numsig)
-    avaavef2 = np.empty([nrs,1])
-    wavconavef2 = np.empty([nrs,1])
-    failavef2 = np.empty([nrs,1])
-    ttavef2 = np.empty([nrs,1])
-    thrptf2 = np.empty([nrs,1]) 
-    Umnf2 = np.empty([nrs,1]) 
-    avaavef3 = np.empty([nrs,1])
-    wavconavef3 = np.empty([nrs,1])
-    failavef3 = np.empty([nrs,1])
-    ttavef3 = np.empty([nrs,1])
-    thrptf3 = np.empty([nrs,1]) 
-    Umnf3 = np.empty([nrs,1]) 
     avaavevp = np.empty([nrs,1])
     wavconavevp = np.empty([nrs,1])
     failavevp = np.empty([nrs,1])
@@ -1404,7 +1636,7 @@ else:
     Umnf = np.empty([nrs,1]) 
     start_time = time.time()
     for i in range(nrs):
-        avaavef2[i], wavconavef2[i], failavef2[i] ,ttavef2[i], thrptf2[i], Umnf2[i], avaavef3[i], wavconavef3[i], failavef3[i] ,ttavef3[i], thrptf3[i], Umnf3[i],avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], Umnvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i], Umnf[i] = testrout(graphA, edgesA, 10,False,numsig[i],numreq, 0)
+        avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], Umnvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i], Umnf[i] = testrout(graphA, edgesA, 10,False,numsig[i],numreq, 0)
     end_time = time.time()
     duration = time.time() - start_time
 
@@ -1418,9 +1650,7 @@ matplotlib.rc('font', **font)
 
 if reqvar:
     plt.plot(numreq, avaavevp, label="GP")
-    plt.plot(numreq, avaavef, label="FM 6dB")
-    plt.plot(numreq, avaavef2, label="FM 4dB")
-    plt.plot(numreq, avaavef3, label="FM 2dB")
+    plt.plot(numreq, avaavef, label="FM")
     plt.legend()
     plt.xlabel("No. of requests")
     plt.ylabel("Availability (%)")
@@ -1428,9 +1658,7 @@ if reqvar:
     plt.show() 
     
     plt.plot(numreq, wavconavevp, label="GP")
-    plt.plot(numreq, wavconavef, label="FM 6dB")
-    plt.plot(numreq, wavconavef2, label="FM 4dB")
-    plt.plot(numreq, wavconavef3, label="FM 2dB")
+    plt.plot(numreq, wavconavef, label="FM")
     plt.legend()
     plt.xlabel("No. of requests")
     plt.ylabel("Wavelength contention (%)")
@@ -1438,9 +1666,7 @@ if reqvar:
     plt.show() 
     
     plt.plot(numreq, failavevp, label="GP")
-    plt.plot(numreq, failavef, label="FM 6dB")
-    plt.plot(numreq, failavef2, label="FM 4dB")
-    plt.plot(numreq, failavef3, label="FM 2dB")
+    plt.plot(numreq, failavef, label="FM")
     plt.legend()
     plt.xlabel("No. of requests")
     plt.ylabel("Failure post-reach est. (%)")
@@ -1448,9 +1674,7 @@ if reqvar:
     plt.show() 
     
     plt.plot(numreq, thrptvp, label="GP")
-    plt.plot(numreq, thrptf, label="FM 6dB")
-    plt.plot(numreq, thrptf2, label="FM 4dB")
-    plt.plot(numreq, thrptf3, label="FM 2dB")
+    plt.plot(numreq, thrptf, label="FM")
     plt.legend()
     plt.xlabel("No. of requests")
     plt.ylabel("Spectral Efficiency (bits/sym)")
@@ -1460,13 +1684,9 @@ if reqvar:
     Rs = 32
     totthrptvp = thrptvp*avaavevp*Rs*1e-2
     totthrptf = thrptf*avaavef*Rs*1e-2
-    totthrptf2 = thrptf2*avaavef2*Rs*1e-2
-    totthrptf3 = thrptf3*avaavef3*Rs*1e-2
-    
+
     plt.plot(numreq, totthrptvp, label="GP")
-    plt.plot(numreq, totthrptf, label="FM 6dB")
-    plt.plot(numreq, totthrptf2, label="FM 4dB")
-    plt.plot(numreq, totthrptf3, label="FM 2dB")
+    plt.plot(numreq, totthrptf, label="FM")
     plt.legend()
     plt.xlabel("No. of requests")
     plt.ylabel("Average throughput (Gb/s)")
@@ -1474,9 +1694,7 @@ if reqvar:
     plt.show() 
     
     plt.plot(numreq, Umnvp, label="GP")
-    plt.plot(numreq, Umnf, label="FM 6dB")
-    plt.plot(numreq, Umnf2, label="FM 4dB")
-    plt.plot(numreq, Umnf3, label="FM 2dB")
+    plt.plot(numreq, Umnf, label="FM")
     plt.legend()
     plt.xlabel("No. of requests")
     plt.ylabel("Unallocated margin (dB)")
@@ -1485,9 +1703,7 @@ if reqvar:
     
 else: 
     plt.plot(numsig, avaavevp, label="GP")
-    plt.plot(numsig, avaavef, label="FM 6dB")
-    plt.plot(numsig, avaavef2, label="FM 4dB")
-    plt.plot(numsig, avaavef3, label="FM 2dB")
+    plt.plot(numsig, avaavef, label="FM")
     plt.legend()
     plt.xlabel("$\sigma$")
     plt.ylabel("Availability (%)")
@@ -1495,9 +1711,7 @@ else:
     plt.show() 
     
     plt.plot(numsig, wavconavevp, label="GP")
-    plt.plot(numsig, wavconavef, label="FM 6dB")
-    plt.plot(numsig, wavconavef2, label="FM 4dB")
-    plt.plot(numsig, wavconavef3, label="FM 2dB")
+    plt.plot(numsig, wavconavef, label="FM")
     plt.legend()
     plt.xlabel("$\sigma$")
     plt.ylabel("Wavelength contention (%)")
@@ -1505,9 +1719,7 @@ else:
     plt.show() 
     
     plt.plot(numsig, failavevp, label="GP")
-    plt.plot(numsig, failavef, label="FM 6dB")
-    plt.plot(numsig, failavef2, label="FM 4dB")
-    plt.plot(numsig, failavef3, label="FM 2dB")
+    plt.plot(numsig, failavef, label="FM")
     plt.legend()   
     plt.xlabel("$\sigma$")
     plt.ylabel("Failure post-reach est. (%)")
@@ -1515,9 +1727,7 @@ else:
     plt.show() 
     
     plt.plot(numsig, thrptvp, label="GP")
-    plt.plot(numsig, thrptf, label="FM 6dB")
-    plt.plot(numsig, thrptf2, label="FM 4dB")
-    plt.plot(numsig, thrptf3, label="FM 2dB")
+    plt.plot(numsig, thrptf, label="FM")
     plt.legend()    
     plt.xlabel("$\sigma$")
     plt.ylabel("Spectral Efficiency (bits/sym)")
@@ -1527,13 +1737,9 @@ else:
     Rs = 32
     totthrptvp = thrptvp*avaavevp*Rs*1e-2
     totthrptf = thrptf*avaavef*Rs*1e-2
-    totthrptf2 = thrptf2*avaavef2*Rs*1e-2
-    totthrptf3 = thrptf3*avaavef3*Rs*1e-2
     
     plt.plot(numsig, totthrptvp, label="GP")
-    plt.plot(numsig, totthrptf, label="FM 6dB")
-    plt.plot(numsig, totthrptf2, label="FM 4dB")
-    plt.plot(numsig, totthrptf3, label="FM 2dB")
+    plt.plot(numsig, totthrptf, label="FM")
     plt.legend()
     plt.xlabel("$\sigma$")
     plt.ylabel("Average throughput (Gb/s)")
@@ -1541,112 +1747,10 @@ else:
     plt.show() 
     
     plt.plot(numsig, Umnvp, label="GP")
-    plt.plot(numsig, Umnf, label="FM 6dB")
-    plt.plot(numsig, Umnf2, label="FM 4dB")
-    plt.plot(numsig, Umnf3, label="FM 2dB")
+    plt.plot(numsig, Umnf, label="FM")
     plt.legend()
     plt.xlabel("$\sigma$")
     plt.ylabel("Unallocated margin (dB)")
     plt.savefig('zUmvsnsig.pdf', dpi=200,bbox_inches='tight')
     plt.show() 
     
-
-# %% ================================ Mutual information estimation ===========================================
-  
-# import constellation shapes from MATLAB-generated csv files 
-if constellationimport:  
-    Qam4r = np.genfromtxt(open("qam4r.csv", "r"), delimiter=",", dtype =float)
-    Qam4i = np.genfromtxt(open("qam4i.csv", "r"), delimiter=",", dtype =float)
-    Qam16r = np.genfromtxt(open("qam16r.csv", "r"), delimiter=",", dtype =float)
-    Qam16i = np.genfromtxt(open("qam16i.csv", "r"), delimiter=",", dtype =float)
-    Qam32r = np.genfromtxt(open("qam32r.csv", "r"), delimiter=",", dtype =float)
-    Qam32i = np.genfromtxt(open("qam32i.csv", "r"), delimiter=",", dtype =float)
-    Qam64r = np.genfromtxt(open("qam64r.csv", "r"), delimiter=",", dtype =float)
-    Qam64i = np.genfromtxt(open("qam64i.csv", "r"), delimiter=",", dtype =float)
-    Qam128r = np.genfromtxt(open("qam128r.csv", "r"), delimiter=",", dtype =float)
-    Qam128i = np.genfromtxt(open("qam128i.csv", "r"), delimiter=",", dtype =float)
-    
-    Qam4 = Qam4r + 1j*Qam4i
-    Qam16 = Qam16r + 1j*Qam16i
-    Qam32 = Qam32r + 1j*Qam32i
-    Qam64 = Qam64r + 1j*Qam64i
-    Qam128 = Qam128r + 1j*Qam128i
-
-# %% ================================ Estimate MI ================================ 
-if MIstuff:
-    # set modulation format order and number of terms used in Gauss-Hermite quadrature
-    M = 4
-    L = 10
-    
-    def MIGHquad(SNR):
-        if M == 4:
-            Ps = np.mean(np.abs(Qam4**2))
-            X = Qam4
-        elif M == 16:
-            Ps = np.mean(np.abs(Qam16**2))
-            X = Qam16
-        elif M == 32:
-            Ps = np.mean(np.abs(Qam32**2))
-            X = Qam32
-        elif M == 64:
-            Ps = np.mean(np.abs(Qam64**2))
-            X = Qam64
-        elif M == 128:
-            Ps = np.mean(np.abs(Qam128**2))
-            X = Qam128
-        else:
-            print("unrecogised M")
-        sigeff2 = Ps/(10**(SNR/10))
-        Wgh = GHquad(L)[0]
-        Rgh = GHquad(L)[1]
-        sum_out = 0
-        for ii in range(M):
-            sum_in = 0
-            for l1 in range(L):      
-                sum_inn = 0
-                for l2 in range(L):
-                    sum_exp = 0
-                    for jj in range(M):  
-                        arg_exp = np.linalg.norm(X[ii]-X[jj])**2 + 2*(sigeff2**0.5)*np.real( (Rgh[l1]+1j*Rgh[l2])*(X[ii]-X[jj]));
-                        sum_exp = np.exp(-arg_exp/sigeff2) + sum_exp
-                    sum_inn = Wgh[l2]*np.log2(sum_exp) + sum_inn
-                sum_in = Wgh[l1]*sum_inn + sum_in
-            sum_out = sum_in + sum_out
-        return np.log2(M)- (1/(M*np.pi))*sum_out 
-    
-    def findMI(SNR):
-        with multiprocessing.Pool() as pool:
-            Ixy = pool.map(MIGHquad, SNR) 
-        return Ixy  
-    #MIripple = findMI(SNRripple)
-# %% ================================== Reach calculation ==================================
-if reachcalculation:
-# find the BER from: On the Bit Error Probability of QAM Modulation - Michael P. Fitz 
-    Lspans = 100
-    PchreachdBm = np.linspace(-5,5,numpoints)
-    lossreach = NDFISlossoverallnzmean
-    dispreach = NDFISdispnzmean
-    # =============================================================================
-    SNRNYr = GNmain(Lspans, Nspans, 157, 101, 201, lossreach,dispreach, PchreachdBm, NF, NLco,False,numpoints)[0]
-    SNRRSr = GNmain(Lspans, Nspans, 157, 101, 201, lossreach, dispreach, PchreachdBm, NF, NLco,False,numpoints)[1]
-    SNRRS2r = GNmain(Lspans, Nspans, 157, 101, 201, lossreach, dispreach, PchreachdBm, NF, NLco,False,numpoints)[2]
-    # Ny = 0 for Nyquist, 1 for RS and 2 for RS2
-    def reachcalc(Ny, P, M):
-        FECthreshold = 2e-2
-        BER = np.zeros(numpoints)
-        Ns = 20 # start at 2 spans because of the denominator of (22) in Poggiolini's GN model paper - divide by ln(Ns) = 0 for Ns = 1
-        while BER[0] < FECthreshold:               
-            SNR = GNmain(Lspans, Ns, 157, 101, 201, alpha, Disp, P, NF, NLco,False,numpoints)[Ny]                
-            if M == 4: 
-                BER = 0.5*special.erfc(SNR**0.5)                    
-            elif M == 16:
-                BER = (3/8)*special.erfc(((2/5)*SNR)**0.5) + (1/4)*special.erfc(((18/5)*SNR)**0.5) - (1/8)*special.erfc((10*SNR)**0.5)                    
-            elif M == 64:
-                BER = (7/24)*special.erfc(((1/7)*SNR)**0.5) + (1/4)*special.erfc(((9/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) - (1/24)*special.erfc(((25/7)*SNR)**0.5) + (1/24)*special.erfc(((81/7)*SNR)**0.5) - (1/24)*special.erfc(((169/7)*SNR)**0.5)     
-            else:
-                print("unrecognised modulation format")    
-            Ns = Ns + 1
-        return Ns
-    
-    test = reachcalc(0, 0, 64)
-       
