@@ -98,7 +98,7 @@ edgesAL = {'1':{'4':0,'5':1},'2':{'3':2,'7':3},'3':{'2':4,'8':5},
 numedgesAL = 28
 LspansAL = 100
 # choose 'active' topology 
-graphA = graphN
+graphA = graphD
 if graphA == graphN:
     graphnormA = graphnormN
     numedgesA = numedgesN
@@ -127,74 +127,66 @@ def getedgelen(graph,numedges):
             count = count + 1
     return edgelens 
 edgelensA = getedgelen(graphA, numedgesA)
-# 
-
 
 # %% GNPy test function 
-PchdBm = np.linspace(-6,6,500)
-
-TRxb2b = 26 
-def GNtest(edgelen, Lspans, numlam, NF, alpha):
-    #################### equipment characteristics ####################
-    lam = 1550 # operating wavelength centre [nm]
-    f = 299792458/(lam*1e-9) # operating frequency [Hz]
-    c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
-    Rs = 32 # symbol rate [GBaud]
-    h = 6.63*1e-34  # Planck's constant [Js]
-    NchNy = 157
-    BWNy = (NchNy*Rs)/1e3 # keep Nyquist spacing for non-saturated channel
-    #BWNy = (157*Rs)/1e3 # full 5THz BW
-    Ns = int(edgelen/Lspans)
-    al = alpha
-    D = Disp
-    gam = NLco
-    Ls = Lspans
-    allin = np.log((10**(al/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
-    #gam = 1.27 # fibre nonlinearity coefficient [1/W*km]
-    beta2 = (D*(lam**2))/(2*np.pi*c) # dispersion coefficient at given wavelength [ps^2/km]
-    Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
-    Leffa = 1/(2*allin)  # the asymptotic effective length [km]
-    LF = 1 # filtering effects coefficient, takes values 0 < LF <= 1 
-    Pch = 1e-3*10**(PchdBm/10)  # ^ [W]
-    Gwdm = (Pch*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
-    
-    ## equation 13, Gnli(0) for single-span Nyquist-WDM 
-    GnliEq13 = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))
-    numpch = len(PchdBm)
-    # ASE noise bit 
-    G = al*Ls
-    NFl = 10**(NF/10) 
-    Gl = 10**(G/10) 
-    OSNRmeasBW = 12.478*1e9 # OSNR measurement BW [Hz]
-    Pasech = NFl*h*f*(Gl - 1)*Rs*1e9*Ns # [W] the ASE noise power in one Nyquist channel across all spans
-    #Pasech = NFl*h*f*(Gl - 1)*OSNRmeasBW*Ns
-    # SNR calc + plotting
-    SNRanalytical = 10*np.log10((LF*Pch)/(Pasech*np.ones(numpch) + GnliEq13*Ns*Rs*1e9))
-    #SNRanalytical = 10*np.log10((LF*Pch)/(Pasech*np.ones(numpch) + GnliEq13*Ns*OSNRmeasBW))
-    Popt = PchdBm[np.argmax(SNRanalytical)]
-    
-    Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] 
-    Poptgnmain = PchdBm[np.argmax(Pun)]
-    
-    return SNRanalytical, Popt, Poptgnmain
-
-testGNsnr, testGNPopt, testgnmainpopt = GNtest(300.0, 100.0, 157, 5.0, 0.2)
-testGNPysnr = np.genfromtxt(open("SNRGNPy.csv", "r"), delimiter=",", dtype =float)
-
-plt.plot(PchdBm, testGNsnr, label="me")
-#plt.plot(PchdBm, testGNPysnr, label="GNPy")
-#plt.plot(PchdBm, testGNmainsnr, label="GNmain")
-plt.legend()
-plt.xlabel("Pch (dBm)")
-plt.ylabel("SNR (dB)")
-plt.savefig('ZGNPycomparison.pdf', dpi=200,bbox_inches='tight')
-plt.show()
-
-print(testGNPopt)
-print(testgnmainpopt)
-
-
-# %%
+PchdBm = np.linspace(-6,6,500)  # 500 datapoints for higher resolution of Pch
+TRxb2b = 26 # fron UCL paper: On the limits of digital back-propagation in the presence of transceiver noise, Lidia Galdino et al.
+# =============================================================================
+# def GNtest(edgelen, Lspans, numlam, NF, alpha):
+#     #################### equipment characteristics ####################
+#     lam = 1550 # operating wavelength centre [nm]
+#     f = 299792458/(lam*1e-9) # operating frequency [Hz]
+#     c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
+#     Rs = 32 # symbol rate [GBaud]
+#     h = 6.63*1e-34  # Planck's constant [Js]
+#     NchNy = 157 # 157 Nyquist channels = full C-band
+#     BWNy = (NchNy*Rs)/1e3 # keep Nyquist spacing for non-saturated channel
+#     #BWNy = (157*Rs)/1e3 # full 5THz BW
+#     Ns = int(edgelen/Lspans)
+#     al = alpha
+#     D = Disp
+#     gam = NLco
+#     Ls = Lspans
+#     allin = np.log((10**(al/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
+#     #gam = 1.27 # fibre nonlinearity coefficient [1/W*km]
+#     beta2 = (D*(lam**2))/(2*np.pi*c) # dispersion coefficient at given wavelength [ps^2/km]
+#     Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
+#     Leffa = 1/(2*allin)  # the asymptotic effective length [km]
+#     LF = 1 # filtering effects coefficient, takes values 0 < LF <= 1 
+#     Pch = 1e-3*10**(PchdBm/10)  # ^ [W]
+#     Gwdm = (Pch*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
+#     
+#     ## equation 13, Gnli(0) for single-span Nyquist-WDM 
+#     GnliEq13 = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))
+#     numpch = len(PchdBm)
+#     # ASE noise bit 
+#     G = al*Ls
+#     NFl = 10**(NF/10) 
+#     Gl = 10**(G/10) 
+#     OSNRmeasBW = 12.478*1e9 # OSNR measurement BW [Hz] - note that 0.1nm BW is used in GNPy measurements of OSNR
+#     Pasech = NFl*h*f*(Gl - 1)*Rs*1e9*Ns # [W] the ASE noise power in one Nyquist channel across all spans
+#     Pasech = NFl*h*f*(Gl - 1)*OSNRmeasBW*Ns
+#     # SNR calc + plotting
+#     SNRanalytical = 10*np.log10((LF*Pch)/(Pasech*np.ones(numpch) + GnliEq13*Ns*Rs*1e9))
+#     SNRanalytical = 10*np.log10((LF*Pch)/(Pasech*np.ones(numpch) + GnliEq13*Ns*OSNRmeasBW))
+#     Popt = PchdBm[np.argmax(SNRanalytical)]
+#     
+#     Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] 
+#     Poptgnmain = PchdBm[np.argmax(Pun)]
+#     
+#     return SNRanalytical, Popt, Poptgnmain
+# 
+# testGNsnr, testGNPopt, testgnmainpopt = GNtest(300.0, 100.0, 157, 5.0, 0.2)
+# testGNPysnr = np.genfromtxt(open("SNRGNPy.csv", "r"), delimiter=",", dtype =float)
+# plt.plot(PchdBm, testGNsnr, label="me")
+# #plt.plot(PchdBm, testGNPysnr, label="GNPy")
+# #plt.plot(PchdBm, testGNmainsnr, label="GNmain")
+# plt.legend()
+# plt.xlabel("Pch (dBm)")
+# plt.ylabel("SNR (dB)")
+# plt.savefig('ZGNPycomparison.pdf', dpi=200,bbox_inches='tight')
+# plt.show()
+# =============================================================================
 
 def marginsnrtest(edgelen, Lspans, numlam, NF, alpha):
     lam = 1550 # operating wavelength centre [nm]
@@ -216,8 +208,8 @@ def marginsnrtest(edgelen, Lspans, numlam, NF, alpha):
     Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
     Leffa = 1/(2*allin)  # the asymptotic effective length [km]
     
-    numpch = len(PchdBm)
-    Pchsw = 1e-3*10**(PchdBm/10)  # ^ [W]
+    numpch = len(PchdBm) # account for higher resolution of PchdBm - not equal to numpoints
+    Pchsw = 1e-3*10**(PchdBm/10)  # [W]
     Gwdmsw = (Pchsw*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
     GnliEq13sw = 1e24*(8/27)*(gam**2)*(Gwdmsw**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))
     G = al*Ls
@@ -239,43 +231,36 @@ def fmdatagentest(edgelens,Lspans, numlam, NF, alpha):
         marginSNR[i] = marginsnrtest(edgelens[i],Lspans, numlam, NF, alpha)
     return marginSNR
 
-testlen = 4800.0
-years = np.linspace(0,10,21)
-numlam = np.linspace(30, 150, np.size(years))
-NF = np.linspace(4.5,5.5,np.size(years))
-alpha = 0.2 + 0.00163669*years
-trxaging = ((1 + 0.05*years)*2).reshape(np.size(years),1)
-oxcaging = ((0.03 + 0.007*years)*2).reshape(np.size(years),1)
-
-testsnrnli = np.empty([np.size(years),1])
-nliampmargin = np.empty([np.size(years),1])
-testsnrjustfibre = np.empty([np.size(years),1])
-
-for i in range(np.size(years)):
-    testsnrnli[i] = marginsnrtest(testlen, LspansA, numlam[i], NF[i], alpha[i])
-testfinalsnr = ( testsnrnli - (trxaging + oxcaging)) 
-plt.plot(years, testsnrnli, label = 'SNR with NF, NLI + FA')
-plt.plot(years, testfinalsnr, label = 'SNR - TRx + filtering')
-plt.xlabel("years")
-plt.ylabel("SNR (dB)")
-plt.legend()
-plt.savefig('marginvarsnr.pdf', dpi=200,bbox_inches='tight')
-plt.show()
-# %% find the worst-case margin required
-
+testlen = 4800.0     # all ageing effects modelled using values in: Faster return of investment in WDM networks when elastic transponders dynamically fit ageing of link margins, Pesic et al.
+years = np.linspace(0,10,21) # define how many years are in the lifetime of the network and the resolution 
+numyears = np.size(years)
+sd = np.linspace(0.04, 0.08, np.size(years)) # added SNR uncertainty SD - assumed to double over lifetime
+numlam = np.linspace(30, 150, np.size(years)) # define the channel loading over the network lifetime 
+NF = np.linspace(4.5,5.5,np.size(years)) # define the NF ageing of the amplifiers 
+alpha = 0.2 + 0.00163669*years # define the fibre ageing due to splice losses over time 
+trxaging = ((1 + 0.05*years)*2).reshape(np.size(years),1) # define TRx ageing 
+oxcaging = ((0.03 + 0.007*years)*2).reshape(np.size(years),1) # define filter ageing, assuming two filters per link, one at Tx and one at Rx
+# =============================================================================
+# testsnrnli = np.empty([np.size(years),1])
+# nliampmargin = np.empty([np.size(years),1])
+# testsnrjustfibre = np.empty([np.size(years),1])
+# for i in range(np.size(years)):
+#     testsnrnli[i] = marginsnrtest(testlen, LspansA, numlam[i], NF[i], alpha[i])
+# testfinalsnr = ( testsnrnli - (trxaging + oxcaging)) 
+# plt.plot(years, testsnrnli, label = 'SNR with NF, NLI + FA')
+# plt.plot(years, testfinalsnr, label = 'SNR - TRx + filtering')
+# plt.xlabel("years")
+# plt.ylabel("SNR (dB)")
+# plt.legend()
+# plt.savefig('marginvarsnr.pdf', dpi=200,bbox_inches='tight')
+# plt.show()
+# =============================================================================
+# find the worst-case margin required
 fmD = np.empty([numedgesA,1])
 for i in range(numedgesA):
-    fmD[i] = 0.08*(edgelensA[i]/1000.0)*5
-fmT = trxaging[-1] + oxcaging[-1] + fmD
-
+    fmD[i] = sd[-1]*(edgelensA[i]/1000.0)*5 # D margin is defined as 5xEoL SNR uncertainty SD that is added
+fmT = trxaging[-1] + oxcaging[-1] + fmD # total static margin: amplifier ageing, NL loading and fibre ageing included in GN
 # %%
-numyears = np.size(years)
-#sd = 0.04
-sd = np.linspace(0.04, 0.08, np.size(years))
-numlam = np.linspace(30, 150, np.size(years))
-NF = np.linspace(4.5,5.5,np.size(years))
-TRxb2b = 26  # TRx B2B SNR 
-
 if datagen:
     def datats(edgelen, Lspans, numlam, NF,sd, alpha, yearind):
         Ls = Lspans
@@ -312,10 +297,10 @@ if datagen:
         Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
         Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
         Pch = 1e-3*10**(Popt/10) 
-        snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
-        snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
+        snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind]) # subtract static ageing effects
+        snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1) # add TRx B2B noise 
         #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
-        sdnorm = sd*(edgelen/1000.0)
+        sdnorm = sd*(edgelen/1000.0) # noise on each link is assumed to be proportional to the link length 
         return lin2db(snr) + np.random.normal(0,sdnorm,numpoints), Popt 
             #return lin2db( ( ((Pch)/(Pase*np.ones(numpoints) + Gnli*Rs*1e9)  )**(-1)  +  np.random.normal(db2lin(26), db2lin(TRxsd), numpoints)**(-1) )**(-1) ) , Popt, Poptind
         
@@ -359,21 +344,19 @@ if datagen == False:
     linkPopt = np.empty([numyears,1])
     for i in range(numyears):
         linkSNR[i], linkPopt[i] = importdat(LspansA,numedgesA, i)
-
+# %% plotting Popt vs time
+# =============================================================================
+# x = np.linspace(0,numpoints-1,numpoints)
+# plt.plot(x,linkSNR[-1][0],'+')
+# plt.show()
+# 
+# plt.plot(years,linkPopt)
+# plt.xlabel("years")
+# plt.ylabel("Popt (dBm)")
+# plt.savefig('yearspopt.pdf', dpi=200,bbox_inches='tight')
+# plt.show()
+# =============================================================================
 # %%
-x = np.linspace(0,numpoints-1,numpoints)
-plt.plot(x,linkSNR[-1][0],'+')
-plt.show()
-
-
-plt.plot(years,linkPopt)
-plt.xlabel("years")
-plt.ylabel("Popt (dBm)")
-plt.savefig('yearspopt.pdf', dpi=200,bbox_inches='tight')
-plt.show()
-
-# %%
-
 def GPtrain(x,y):
     y = y.reshape(-1,1)
     x = x.reshape(-1,1)
@@ -381,25 +364,16 @@ def GPtrain(x,y):
     y = scaler.transform(y)
     #kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-3, 1e3)) + W(1.0, (1e-5, 1e5))
     kernel = C(0.03, (1e-3, 1e1)) * RBF(0.01, (1e-2, 1e2)) 
-    #print("Initial kernel: %s" % kernel)
     gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer = 20, normalize_y=False, alpha=np.var(y))
-    #gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer = 9, normalize_y=False)
     gpr.fit(x, y)
     #print("Optimised kernel: %s" % gpr.kernel_)
-    #print("SKLearn fitting took " + str(end - start) + "s")
-    #hyperparameter = np.exp(gpr.kernel_.theta)
-    #alpha = hyperparameter[0]**0.5 # k1
-    #rho = hyperparameter[1]**0.5 # k2
-    #sigmakernel = hyperparameter[2]**0.5
     ystar, sigma = gpr.predict(x, return_std=True )
     sigma = np.reshape(sigma,(np.size(sigma), 1)) 
     sigma = (sigma**2 + 1)**0.5  
-    
     ystarp = ystar + sigma
     ystari = scaler.inverse_transform(ystar)
     ystarpi = scaler.inverse_transform(ystarp)
     sigmai = np.mean(ystarpi - ystari)
-    
     return ystari, sigmai
 
 if GPtraining:
@@ -410,14 +384,12 @@ if GPtraining:
         y = linkSNR[i]
         prmnt = np.empty([np.size(y,0),np.size(y,1)])
         sigmat = np.empty([np.size(y,0),1])
-            
         start = time.time()
         for j in range(numedgesA):
             #print("link " + str(j))
             prmns, sigmat[j] = GPtrain(x,y[j])
             prmnt[j] = prmns.reshape(numpoints)
         end = time.time()
-            
         print("GP training took " + str(end-start))   
         if graphA == graphN:   
             np.savetxt('prmntsN' + str(i) + '.csv', prmnt, delimiter=',') 
@@ -429,14 +401,10 @@ if GPtraining:
             np.savetxt('prmntsAL' + str(i) + '.csv', prmnt, delimiter=',') 
             np.savetxt('sigtsAL' + str(i) + '.csv', sigmat, delimiter=',')
         for j in range(numedgesA):
-            prmn[i][j] = np.mean(prmnt[j])
-        #prmn[i] = prmnt
+            prmn[i][j] = np.mean(prmnt[j]) # average over the predictive mean to smooth out any variation - doing this might be dodgy
         sigma[i] = sigmat.reshape(numedgesA)
-
-
 # %% import trained GP models
 if GPtraining == False:  
-    #prmn = np.empty([numyears,numedgesA,numpoints])
     sigma =  np.empty([numyears,numedgesA])
     prmn = np.empty([numyears,numedgesA])
     for i in range(numyears):
@@ -451,11 +419,8 @@ if GPtraining == False:
             sigmat = np.genfromtxt(open('sigtsAL' + str(i) + '.csv', "r"), delimiter=",", dtype =float)
         for j in range(numedgesA):
             prmn[i][j] = np.mean(prmnt[j])
-            
-        #prmn[i] = prmnt
-        sigma[i] = sigmat #.reshape(numedgesA,1) 
+        sigma[i] = sigmat 
 # %% 
-
 def fmsnr(edgelen, Lspans, numlam, NF, alpha, yearind):
         Ls = Lspans
         NchNy = numlam
@@ -473,10 +438,9 @@ def fmsnr(edgelen, Lspans, numlam, NF, alpha, yearind):
         Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
         Leffa = 1/(2*allin)  # the asymptotic effective length [km]  
         numspans = int(edgelen/Lspans)
-        
         #Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] 
         #Popt = PchdBm[np.argmax(Pun)]        
-        
+        # ======================= find Popt ===============================
         numpch = len(PchdBm)
         Pchsw = 1e-3*10**(PchdBm/10)  # ^ [W]
         Gwdmsw = (Pchsw*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
@@ -487,7 +451,7 @@ def fmsnr(edgelen, Lspans, numlam, NF, alpha, yearind):
         Pasesw = NFl*h*f*(Gl - 1)*Rs*1e9 # [W] the ASE noise power in one Nyquist channel across all spans
         snrsw = (Pchsw)/(Pasesw*np.ones(numpch) + GnliEq13sw*Rs*1e9)
         Popt = PchdBm[np.argmax(snrsw)]  
-        
+        # ======================= find Popt ===============================
         Gwdm = (1e-3*10**(Popt/10)*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
         Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
         Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
@@ -497,16 +461,14 @@ def fmsnr(edgelen, Lspans, numlam, NF, alpha, yearind):
         snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
         return lin2db(snr) 
     
-def fmdatagen(edgelens,Lspans, yearind):
-    fmSNR = np.empty([np.size(edgelens),1])
+def fmdatagen(edgelens,Lspans, yearind):    # this generates a GN model SNR value for each year, but currently only using
+    fmSNR = np.empty([np.size(edgelens),1]) # the EoL values - the margin for loading, NF ageing and fibre ageing is included here
     for i in range(np.size(edgelens)):
         fmSNR[i] = fmsnr(edgelens[i],Lspans, numlam[yearind], NF[yearind], alpha[yearind], yearind)
     return fmSNR
-
 fmSNR = np.empty([numyears, numedgesA, 1])
 for i in range(numyears):
     fmSNR[i] = fmdatagen(edgelensA,LspansA,i)
-
 # %%
 def BERcalc(M, SNR): # linear SNR here is energy per symbol - need to convert to energy per bit to use these formulae - hence the division by log2(M)
         if M == 2: 
@@ -520,29 +482,24 @@ def BERcalc(M, SNR): # linear SNR here is energy per symbol - need to convert to
         else:
             print("unrecognised modulation format")
         return BER
-    
 # %%    
-    
-def getlinklen(shpath,graph,edges):
+def getlinklen(shpath,graph,edges):  # function used in routing 
         linklen = np.empty([len(shpath)-1,1])
         link = []
         for i in range(len(shpath)-1):
             linklen[i] = float((graph.get(shpath[i])).get(shpath[i+1]))
             link.append((edges.get(shpath[i])).get(shpath[i+1]))
-        return linklen, link
-    
-def requestgen(graph):
+        return linklen, link   
+def requestgen(graph): # function used in routing
             src = random.choice(list(graph.keys()))
             des = random.choice(list(graph.keys()))
             while des == src:
                 des = random.choice(list(graph.keys()))
             return src, des
-
-
-def SNRnew(edgelen,numlam, yearind):
+def SNRnew(edgelen,numlam, yearind):  # function for generating a new SNR value to test if uncertainty is dealt with
         Ls = LspansA
-        NchNy = numlam
-        D = Disp
+        NchNy = numlam    # numlam is an input here because the number of wavelengths actually established on a given link is used 
+        D = Disp          # rather than the worst-case number 
         gam = NLco
         lam = 1550 # operating wavelength centre [nm]
         f = 299792458/(lam*1e-9) # operating frequency [Hz]
@@ -556,9 +513,7 @@ def SNRnew(edgelen,numlam, yearind):
         Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
         Leffa = 1/(2*allin)  # the asymptotic effective length [km]  
         numspans = int(edgelen/Ls)
-        
-        #Pun = GNmain(Ls, 1, numlam, 101, 201, alpha[yearind], Disp, PchdBm, NF[yearind], NLco,False,numpoints)[0] 
-        
+        # ===================== find Popt ==========================
         numpch = len(PchdBm)
         Pchsw = 1e-3*10**(PchdBm/10)  # ^ [W]
         Gwdmsw = (Pchsw*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
@@ -569,8 +524,7 @@ def SNRnew(edgelen,numlam, yearind):
         Pasesw = NFl*h*f*(Gl - 1)*Rs*1e9 # [W] the ASE noise power in one Nyquist channel across all spans
         snrsw = (Pchsw)/(Pasesw*np.ones(numpch) + GnliEq13sw*Rs*1e9)
         Popt = PchdBm[np.argmax(snrsw)]  
-        
-        
+        # ===================== find Popt ==========================
         Popt = PchdBm[np.argmax(snrsw)]                                                   
         Gwdm = (1e-3*10**(Popt/10)*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
         Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
@@ -581,21 +535,13 @@ def SNRnew(edgelen,numlam, yearind):
         #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
         sdnorm = sd[yearind]*(edgelen/1000.0)
         return lin2db(snr) + np.random.normal(0,sdnorm,1)
-
-#test = SNRnew(edgelensA[0],40,0)
-
-test2 = SNRnew(edgelensA[0],40,0)
-
-FT2 = 0.24
-FT4 = 3.25 # all correspond to BER of 2e-2
+# define the FEC thresholds - all correspond to BER of 2e-2 (2% FEC)
+FT2 = 0.24 
+FT4 = 3.25 
 FT16 = 12.72
 FT64 = 18.43
 FT128 = 22.35
-
-     
-# %% fixed margin routing algorithm 
-
-
+# %% fixed margin routing algorithm - no second shortest path routing applied 
 def fmrta(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, Lspans, yearind):
     dis = []
     path = []
@@ -646,8 +592,7 @@ def fmrta(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, L
     for i in range(np.size(path)):
         pathdists.append(getlinklen(path[i],graphnormA,edges)[0])
         links.append(getlinklen(path[i],graph,edges)[1])
-    
-    estlam = np.zeros([numedges,int(numlam[-1])]) # 0 for empty, 1 for occupied
+    estlam = np.zeros([numedges,int(numlam[yearind])]) # 0 for empty, 1 for occupied
     reqlams = 0
     conten = 0
     failures = 0 # post-reach determination failures
@@ -693,7 +638,7 @@ def fmrta(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, L
         #print(np.size(randedges))
         for j in range(np.size(linkSNR[0][randedges],0)):
             
-            if fmSNR[-1][randedges][j] - fmT[randedges][j] > FT128:
+            if fmSNR[-1][randedges][j] - fmT[randedges][j] > FT128: # use the worst-case fixed margin SNR estimate
                 FT[j] = FT128
                 ct128 = ct128 + 1
                 edgesuc = edgesuc + 1
@@ -714,15 +659,11 @@ def fmrta(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, L
                 ct2 = ct2 + 1
                 edgesuc = edgesuc + 1
             else:
-                #print("request " + str(i) + " denied -- insufficient reach on edge " + str(randedges[j]))
-                break   
-        
+                break    
         if edgesuc == np.size(linkSNR[0][randedges],0):
             # generate new SNR value here
             for w in range(np.size(randedges)):
                 # retrieve estlam row corresponding to randegdes[w] index, find number of 1s, pass to SNRnew()
-               #edgelen, Lspans, numlam, NF,sd, alpha, yearind
-                
                 estSNR = SNRnew(edgelens[randedges[w]], np.count_nonzero(estlam[randedges[w]])+1, yearind)
                 if estSNR > FT[w]:
                     # link successfully established
@@ -736,10 +677,8 @@ def fmrta(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, L
             else: 
                 # link not established
                 failures = failures + 1
-        
         else: 
             noreach = noreach + 1
-        
     ava = (reqlams/numreq)*100 
     tottime = (sum(randdist)*1e3*1.468)/299792458
     if showres:
@@ -747,25 +686,20 @@ def fmrta(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, L
         print("Normal total traversal time = " + str('%.2f' % tottime) + "s")
         print("Normal number of failures = " + str(failures))
     return ava, estlam, reqlams, conten,ct128, ct64, ct16, ct4,ct2, failures, noreach, Um
-
-
 # =============================================================================
-testsrc = []
-testdes = []
-for _ in range(2000):
-    rsctest, rdstest = requestgen(graphA)
-    testsrc.append(rsctest)
-    testdes.append(rdstest)   
-#test1, _, _, _, _, _, _, _, _, test10, _, _ = fmrta(graphA, edgesA, testsrc, testdes, False,nodesA,numedgesA,edgelensA,fmSNR, LspansA, -1)
+# testsrc = []
+# testdes = []
+# for _ in range(2000):
+#     rsctest, rdstest = requestgen(graphA)
+#     testsrc.append(rsctest)
+#     testdes.append(rdstest)   
+# test1, _, _, _, _, _, _, _, _, test10, _, _ = fmrta(graphA, edgesA, testsrc, testdes, False,nodesA,numedgesA,edgelensA,fmSNR, LspansA, -1)
 # =============================================================================
-
-
 # %%
-def removekey(d, keysrc, keydes):
+def removekey(d, keysrc, keydes): # function for removing key from dict - used to remove blocked links 
     r = dict(d)
     del r.get(keysrc)[keydes]
     return r 
-
 def fmrta2(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, Lspans, yearind):
     dis = []
     path = []
@@ -816,7 +750,7 @@ def fmrta2(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, 
     for i in range(len(path)):
         pathdists.append(getlinklen(path[i],graphnormA,edges)[0])
         links.append(getlinklen(path[i],graphA,edges)[1])
-    estlam = np.zeros([numedges,int(numlam[-1])]) # 0 for empty, 1 for occupied
+    estlam = np.zeros([numedges,int(numlam[yearind])]) # 0 for empty, 1 for occupied
     reqlams = 0
     conten = 0
     failures = 0 # post-reach determination failures
@@ -894,7 +828,6 @@ def fmrta2(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, 
         #print(np.size(linkSNR[randedges],0))
         #print(np.size(randedges))
         for j in range(np.size(linkSNR[-1][randedges],0)):
-            
             if fmSNR[-1][randedges][j] - fmT[randedges][j] > FT128:
                 FT[j] = FT128
                 ct128 = ct128 + 1
@@ -916,9 +849,7 @@ def fmrta2(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, 
                 ct2 = ct2 + 1
                 edgesuc = edgesuc + 1
             else:
-                #print("request " + str(i) + " denied -- insufficient reach on edge " + str(randedges[j]))
                 break   
-        
         if edgesuc == np.size(linkSNR[-1][randedges],0):
             # generate new SNR value here
             for w in range(np.size(randedges)):
@@ -937,19 +868,12 @@ def fmrta2(graph, edges, Rsource, Rdest, showres,nodes,numedges,edgelens,fmSNR, 
                 # link not established
                 failures = failures + 1
         else: 
-            noreach = noreach + 1
-        
+            noreach = noreach + 1   
     ava = (reqlams/numreq)*100 
-    
     return ava, estlam, reqlams, conten,ct128, ct64, ct16, ct4,ct2, failures, noreach, Um
- 
-test21, test22, test23, test24, test25, test26, test27, test28, test29, test210, test211, test212 = fmrta2(graphA, edgesA, testsrc, testdes, False,nodesA,numedgesA,edgelensA,fmSNR, LspansA, 0)
-
+#test21, test22, test23, test24, test25, test26, test27, test28, test29, test210, test211, test212 = fmrta2(graphA, edgesA, testsrc, testdes, False,nodesA,numedgesA,edgelensA,fmSNR, LspansA, 0)
 # %%
-
 #cProfile.run('fmrta2(graphA, edgesA, testsrc, testdes, False,nodesA,numedgesA,edgelensA,fmSNR, LspansA, 0)')
-
-
 # %%
 def varrtap(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans,yearind):
     dis = []
@@ -1020,7 +944,7 @@ def varrtap(graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lsp
         pathdists.append(getlinklen(path[i],graphnormA,edges)[0])
         links.append(getlinklen(path[i],graphvar,edges)[1])
     
-    estlam = np.zeros([numedges,int(numlam[-1])]) # 0 for empty, 1 for occupied
+    estlam = np.zeros([numedges,int(numlam[yearind])]) # 0 for empty, 1 for occupied
     reqlams = 0
     conten = 0
     failures = 0
@@ -1116,15 +1040,11 @@ testsrc = []
 for _ in range(2000):
     rsctest, rdstest = requestgen(graphA)
     testsrc.append(rsctest)
-    testdes.append(rdstest)   
-                                                                                                                       # graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans
+    testdes.append(rdstest)                                                                                                                        # graph,edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans
 #test1, test2, test3, test4, test5, test6, test7, test8, test9, test10, test11, test12, test13 = varrtap(graphA, edgesA, testsrc, testdes, False,5.0,nodesA,numedgesA,edgelensA, LspansA, 0)
 #test14 = test13/(test7 + test8 + test9 + test10 + test11)
 # =============================================================================
-    
-
 # %%
-    
 def varrtap2(edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans,yearind):
     dis = []
     path = []
@@ -1192,8 +1112,7 @@ def varrtap2(edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans,y
     for i in range(np.size(path)):
         pathdists.append(getlinklen(path[i],graphnormA,edges)[0])
         links.append(getlinklen(path[i],graphvar,edges)[1])
-    
-    estlam = np.zeros([numedges,int(numlam[-1])]) # 0 for empty, 1 for occupied
+    estlam = np.zeros([numedges,int(numlam[yearind])]) # 0 for empty, 1 for occupied
     reqlams = 0
     conten = 0
     failures = 0
@@ -1319,7 +1238,6 @@ def varrtap2(edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans,y
     return ava, estlam, reqlams, tottime,conten, conf, ct128, ct64, ct16, ct4,ct2, failures, Um
 #test1, test2, test3, test4, test5, test6, test7, test8, test9, test10, test11, test12, test13 = varrtap2(edgesA, testsrc, testdes, False,5.0,nodesA,numedgesA,edgelensA, LspansA, 0)
 #test14 = test13/(test7 + test8 + test9 + test10 + test11)
-
 # %%
 def gprout(edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans,yearind):
     dis = []
@@ -1389,7 +1307,7 @@ def gprout(edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans,yea
         pathdists.append(getlinklen(path[i],graphnormA,edges)[0])
         links.append(getlinklen(path[i],graphvar,edges)[1])
     
-    estlam = np.zeros([numedges,int(numlam[-1])]) # 0 for empty, 1 for occupied
+    estlam = np.zeros([numedges,int(numlam[yearind])]) # 0 for empty, 1 for occupied
     reqlams = 0
     conten = 0
     failures = 0
@@ -1513,9 +1431,6 @@ def gprout(edges,Rsource,Rdest,showres,numsig,nodes,numedges,edgelens,Lspans,yea
         print("Variance-aided availability = " + str(ava) + "%") 
         print("Variance-aided total traversal time = " + str('%.2f' % tottime) + "s")
     return ava, estlam, reqlams, tottime,conten, conf, ct128, ct64, ct16, ct4,ct2, failures, Um
-
-
-
 # %%
 # ========== this loop resets the network loading after numreqs, numtests times  ===========
 def testrout(graph, edges, numtests,showres,numsig, numreq, yearind):
@@ -1531,8 +1446,6 @@ def testrout(graph, edges, numtests,showres,numsig, numreq, yearind):
     failf = np.empty([numtests,1])
     noreachf = np.empty([numtests,1])
     Umf = np.empty([numtests,1])
-    
-    
     
     avavp = np.empty([numtests,1])
     tottimevp = np.empty([numtests,1])
@@ -1553,7 +1466,7 @@ def testrout(graph, edges, numtests,showres,numsig, numreq, yearind):
             rsrct.append(rsct)
             rdest.append(rdst)
                                                                                                                                                                                                  
-        avavp[i], _, _, tottimevp[i], contenvp[i], conf , ct128vp[i], ct64vp[i],ct16vp[i], ct4vp[i],ct2vp[i], failvp[i], Umvp[i]   = varrtap2(edges,rsrct,rdest,showres,numsig,nodesA,numedgesA,edgelensA,LspansA,yearind)
+        #avavp[i], _, _, tottimevp[i], contenvp[i], conf , ct128vp[i], ct64vp[i],ct16vp[i], ct4vp[i],ct2vp[i], failvp[i], Umvp[i]   = varrtap2(edges,rsrct,rdest,showres,numsig,nodesA,numedgesA,edgelensA,LspansA,yearind)
         avavp[i], _, _, tottimevp[i], contenvp[i], conf , ct128vp[i], ct64vp[i],ct16vp[i], ct4vp[i],ct2vp[i], failvp[i], Umvp[i]   = gprout(edges,rsrct,rdest,showres,numsig,nodesA,numedgesA,edgelensA,LspansA,yearind)
         avaf[i], _, _, contenf[i], ct128f[i], ct64f[i],ct16f[i], ct4f[i],ct2f[i], failf[i], noreachf[i], Umf[i]   = fmrta2(graph,edges,rsrct,rdest,showres,nodesA,numedgesA,edgelensA,fmSNR,LspansA, yearind)
         #avaf2[i], _, _,  contenf2[i], ct128f2[i], ct64f2[i],ct16f2[i], ct4f2[i],ct2f2[i], failf2[i], noreachf2[i], Umf2[i]   = fmrta2(graph,edges,rsrct,rdest,showres,4.0,nodesA,numedgesA,edgelensA,fmSNR,LspansA)
@@ -1569,7 +1482,6 @@ def testrout(graph, edges, numtests,showres,numsig, numreq, yearind):
     failavef = np.mean(failf/numreq)*100 # express as a %
     norchavef = np.mean(noreachf/numreq)*100
     
-    
     ct128avevp = np.mean(ct128vp)
     ct64avevp = np.mean(ct64vp)
     ct16avevp = np.mean(ct16vp)
@@ -1581,21 +1493,19 @@ def testrout(graph, edges, numtests,showres,numsig, numreq, yearind):
     ct4avef = np.mean(ct4f)
     ct2avef = np.mean(ct2f)
     
-    
     Umnf = np.mean(Umf)/(ct128avef + ct64avef + ct16avef + ct4avef +  ct2avef)
-
     Umnvp = np.mean(Umvp)/(ct128avevp + ct64avevp + ct16avevp + ct4avevp +  ct2avevp)
     
     thrptvp = 2*(ct128avevp*7 + ct64avevp*6 + ct16avevp*4 + ct4avevp*2 + ct2avevp)/(ct128avevp + ct64avevp + ct16avevp + ct4avevp + ct2avevp)
     thrptf = 2*(ct128avef*7 + ct64avef*6 + ct16avef*4 + ct4avef*2 + ct2avef)/(ct128avef + ct64avef + ct16avef + ct4avef +  ct2avef)
-    
-    
+
     return avaavevp, wavconavevp, failavevp ,ttavevp, thrptvp, Umnvp,  avaavef, wavconavef, failavef ,ttavef, thrptf, norchavef, Umnf 
 
-reqvar = True
-if reqvar:
+# =============================================================================
+testava = False
+if testava:
     #numreq = np.linspace(150,500,21,dtype=int)
-    numreq = np.linspace(500,1500,6,dtype=int)
+    numreq = np.linspace(100,1500,21,dtype=int)
     numsig = 5.0
     nrs = np.size(numreq)
     avaavevp = np.empty([nrs,1])
@@ -1613,144 +1523,191 @@ if reqvar:
     Umnf = np.empty([nrs,1]) 
     start_time = time.time()
     for i in range(nrs):     
-        avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], Umnvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i], Umnf[i] = testrout(graphA, edgesA, 20,False,numsig,numreq[i],0)
+        avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], Umnvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i], Umnf[i] = testrout(graphA, edgesA, 10,False,numsig,numreq[i],0)
         print("completed iteration " + str(i))
     end_time = time.time()
     duration = time.time() - start_time
-else:
-    numreq = 200
-    numsig = np.linspace(0.5,6.0,21)
-    nrs = np.size(numsig)
-    avaavevp = np.empty([nrs,1])
-    wavconavevp = np.empty([nrs,1])
-    failavevp = np.empty([nrs,1])
-    ttavevp = np.empty([nrs,1])
-    thrptvp = np.empty([nrs,1]) 
-    Umnvp = np.empty([nrs,1]) 
-    avaavef = np.empty([nrs,1])
-    wavconavef = np.empty([nrs,1])
-    failavef = np.empty([nrs,1])
-    ttavef = np.empty([nrs,1])
-    thrptf = np.empty([nrs,1])
-    norchavef = np.empty([nrs,1])
-    Umnf = np.empty([nrs,1]) 
-    start_time = time.time()
-    for i in range(nrs):
-        avaavevp[i], wavconavevp[i], failavevp[i],ttavevp[i], thrptvp[i], Umnvp[i], avaavef[i], wavconavef[i], failavef[i] ,ttavef[i], thrptf[i], norchavef[i], Umnf[i] = testrout(graphA, edgesA, 10,False,numsig[i],numreq, 0)
-    end_time = time.time()
-    duration = time.time() - start_time
 
-print("Routing calculation duration: " + str(duration))
+# print("Routing calculation duration: " + str(duration))
+# =============================================================================
 
-# %% plotting
-font = { 'family' : 'sans-serif',
-        'weight' : 'normal',
-        'size'   : 15}
-matplotlib.rc('font', **font)
 
-if reqvar:
     plt.plot(numreq, avaavevp, label="GP")
     plt.plot(numreq, avaavef, label="FM")
     plt.legend()
     plt.xlabel("No. of requests")
     plt.ylabel("Availability (%)")
+    #plt.savefig('zAvavsnreq.pdf', dpi=200,bbox_inches='tight')
+    plt.show() 
+
+
+
+# %%
+timevar = True
+if timevar:
+    numreq = np.linspace(100,1500,21,dtype=int)
+    numsig = 5.0
+    nrs = np.size(numreq)
+    avaavevp = np.empty([numyears,nrs])
+    wavconavevp = np.empty([numyears,nrs])
+    failavevp = np.empty([numyears,nrs])
+    ttavevp = np.empty([numyears,nrs])
+    thrptvp = np.empty([numyears,nrs]) 
+    Umnvp = np.empty([numyears,nrs]) 
+    avaavef = np.empty([numyears,nrs])
+    wavconavef = np.empty([numyears,nrs])
+    failavef = np.empty([numyears,nrs])
+    ttavef = np.empty([numyears,nrs])
+    thrptf = np.empty([numyears,nrs])
+    norchavef = np.empty([numyears,nrs])
+    Umnf = np.empty([numyears,nrs]) 
+    start_time = time.time()
+    for i in range(numyears):
+        for j in range(nrs):     
+            avaavevp[i][j], wavconavevp[i][j], failavevp[i][j],ttavevp[i][j], thrptvp[i][j], Umnvp[i][j], avaavef[i][j], wavconavef[i][j], failavef[i][j] ,ttavef[i][j], thrptf[i][j], norchavef[i][j], Umnf[i][j] = testrout(graphA, edgesA, 10,False,numsig,numreq[j], i)
+            print("completed numreq iteration " + str(j))
+        print("completed numyears iteration " + str(i))
+    end_time = time.time()
+    duration = time.time() - start_time
+
+
+# %% plotting
+    if graphA == graphN:
+        np.savetxt('avaavevpN.csv', avaavevp, delimiter=',') 
+        np.savetxt('avaavefN.csv', avaavef, delimiter=',') 
+        np.savetxt('thrptvpN.csv', thrptvp, delimiter=',')
+        np.savetxt('thrptfN.csv', thrptvp, delimiter=',')
+        np.savetxt('UmnvpN.csv', Umnvp, delimiter=',')
+        np.savetxt('UmnfN.csv', Umnf, delimiter=',')
+    elif graphA == graphD:
+        np.savetxt('avaavevpD.csv', avaavevp, delimiter=',') 
+        np.savetxt('avaavefD.csv', avaavef, delimiter=',') 
+        np.savetxt('thrptvpD.csv', thrptvp, delimiter=',')
+        np.savetxt('thrptfD.csv', thrptvp, delimiter=',')
+        np.savetxt('UmnvpD.csv', Umnvp, delimiter=',')
+        np.savetxt('UmnfD.csv', Umnf, delimiter=',')
+    elif graphA == graphAL:
+        np.savetxt('avaavevpAL.csv', avaavevp, delimiter=',') 
+        np.savetxt('avaavefAL.csv', avaavef, delimiter=',') 
+        np.savetxt('thrptvpAL.csv', thrptvp, delimiter=',')
+        np.savetxt('thrptfAL.csv', thrptvp, delimiter=',')
+        np.savetxt('UmnvpAL.csv', Umnvp, delimiter=',')
+        np.savetxt('UmnfAL.csv', Umnf, delimiter=',')
+    
+    
+    font = { 'family' : 'sans-serif',
+            'weight' : 'normal',
+            'size'   : 15}
+    matplotlib.rc('font', **font)
+    chyr = 0
+    plt.plot(numreq, avaavevp[chyr], label="GP")
+    plt.plot(numreq, avaavef[chyr], label="FM")
+    plt.legend()
+    plt.xlabel("No. of requests")
+    plt.ylabel("Availability (%)")
     plt.savefig('zAvavsnreq.pdf', dpi=200,bbox_inches='tight')
     plt.show() 
-    
-    plt.plot(numreq, wavconavevp, label="GP")
-    plt.plot(numreq, wavconavef, label="FM")
+        
+    plt.plot(numreq, wavconavevp[chyr], label="GP")
+    plt.plot(numreq, wavconavef[chyr], label="FM")
     plt.legend()
     plt.xlabel("No. of requests")
     plt.ylabel("Wavelength contention (%)")
     plt.savefig('zWlcvsnreq.pdf', dpi=200,bbox_inches='tight')
     plt.show() 
-    
-    plt.plot(numreq, failavevp, label="GP")
-    plt.plot(numreq, failavef, label="FM")
+        
+    plt.plot(numreq, failavevp[chyr], label="GP")
+    plt.plot(numreq, failavef[chyr], label="FM")
     plt.legend()
     plt.xlabel("No. of requests")
     plt.ylabel("Failure post-reach est. (%)")
     plt.savefig('zfailvsnreq.pdf', dpi=200,bbox_inches='tight')
     plt.show() 
-    
-    plt.plot(numreq, thrptvp, label="GP")
-    plt.plot(numreq, thrptf, label="FM")
+        
+    plt.plot(numreq, thrptvp[chyr], label="GP")
+    plt.plot(numreq, thrptf[chyr], label="FM")
     plt.legend()
     plt.xlabel("No. of requests")
     plt.ylabel("Spectral Efficiency (bits/sym)")
     plt.savefig('zThrptvsnreq.pdf', dpi=200,bbox_inches='tight')
     plt.show() 
-    
+        
     Rs = 32
     totthrptvp = thrptvp*avaavevp*Rs*1e-2
     totthrptf = thrptf*avaavef*Rs*1e-2
-
-    plt.plot(numreq, totthrptvp, label="GP")
-    plt.plot(numreq, totthrptf, label="FM")
+    
+    plt.plot(numreq, totthrptvp[chyr], label="GP")
+    plt.plot(numreq, totthrptf[chyr], label="FM")
     plt.legend()
     plt.xlabel("No. of requests")
     plt.ylabel("Average throughput (Gb/s)")
     plt.savefig('zTotalthrptvsnreq.pdf', dpi=200,bbox_inches='tight')
     plt.show() 
-    
-    plt.plot(numreq, Umnvp, label="GP")
-    plt.plot(numreq, Umnf, label="FM")
+        
+    plt.plot(numreq, Umnvp[chyr], label="GP")
+    plt.plot(numreq, Umnf[chyr], label="FM")
     plt.legend()
     plt.xlabel("No. of requests")
     plt.ylabel("Unallocated margin (dB)")
     plt.savefig('zUmvsnreq.pdf', dpi=200,bbox_inches='tight')
     plt.show() 
+        
+    # %%
     
-else: 
-    plt.plot(numsig, avaavevp, label="GP")
-    plt.plot(numsig, avaavef, label="FM")
+    blckind = np.empty([numyears,1],dtype=int)
+    
+    for i in range(numyears):
+        blckind[i] = next(x for x, val in enumerate(avaavevp[i]) if val  < 100.0) - 1 # index of highest number of non-blocking requests
+    pknumreq = numreq[blckind]
+    pkthrptvp = np.empty([numyears,1])
+    pkthrptf = np.empty([numyears,1])
+    pkUmnvp = np.empty([numyears,1])
+    pkUmnf = np.empty([numyears,1])
+    for i in range(numyears):
+        pkthrptvp[i] = totthrptvp[i][blckind[i][0]]
+        pkthrptf[i] = totthrptf[i][blckind[i][0]]
+        pkUmnvp[i] = Umnvp[i][blckind[i][0]]
+        pkUmnf[i] = Umnf[i][blckind[i][0]]
+    if graphA == graphN:    
+        np.savetxt('pkthrptvpN.csv', pkthrptvp, delimiter=',') 
+        np.savetxt('pkthrptfN.csv', pkthrptf, delimiter=',') 
+        np.savetxt('pkUmnvpN.csv', pkUmnvp, delimiter=',')
+        np.savetxt('pkUmnfN.csv', pkUmnf, delimiter=',')
+        np.savetxt('pknumreqN.csv', pknumreq, delimiter=',')
+    elif graphA == graphD:    
+        np.savetxt('pkthrptvpD.csv', pkthrptvp, delimiter=',') 
+        np.savetxt('pkthrptfD.csv', pkthrptf, delimiter=',') 
+        np.savetxt('pkUmnvpD.csv', pkUmnvp, delimiter=',')
+        np.savetxt('pkUmnfD.csv', pkUmnf, delimiter=',')
+        np.savetxt('pknumreqD.csv', pknumreq, delimiter=',')
+    elif graphA == graphAL:    
+        np.savetxt('pkthrptvpAL.csv', pkthrptvp, delimiter=',') 
+        np.savetxt('pkthrptfAL.csv', pkthrptf, delimiter=',') 
+        np.savetxt('pkUmnvpAL.csv', pkUmnvp, delimiter=',')
+        np.savetxt('pkUmnfAL.csv', pkUmnf, delimiter=',')
+        np.savetxt('pknumreqAL.csv', pknumreq, delimiter=',')
+   
+    plt.plot(years, pkthrptvp, label="GP")
+    plt.plot(years, pkthrptf, label="FM")
     plt.legend()
-    plt.xlabel("$\sigma$")
-    plt.ylabel("Availability (%)")
-    plt.savefig('zAvavsnsig.pdf', dpi=200,bbox_inches='tight')
+    plt.xlabel("Time (years)")
+    plt.ylabel("Peak average throughput (Gb/s)")
+    plt.savefig('zpkthrptvstime.pdf', dpi=200,bbox_inches='tight')
     plt.show() 
     
-    plt.plot(numsig, wavconavevp, label="GP")
-    plt.plot(numsig, wavconavef, label="FM")
+    plt.plot(years, pkUmnvp, label="GP")
+    plt.plot(years, pkUmnf, label="FM")
     plt.legend()
-    plt.xlabel("$\sigma$")
-    plt.ylabel("Wavelength contention (%)")
-    plt.savefig('zWlcvsnsig.pdf', dpi=200,bbox_inches='tight')
+    plt.xlabel("Time (years)")
+    plt.ylabel("Peak unallocated margin (dB)")
+    plt.savefig('zpkUmnvstime.pdf', dpi=200,bbox_inches='tight')
     plt.show() 
     
-    plt.plot(numsig, failavevp, label="GP")
-    plt.plot(numsig, failavef, label="FM")
-    plt.legend()   
-    plt.xlabel("$\sigma$")
-    plt.ylabel("Failure post-reach est. (%)")
-    plt.savefig('zfailvsnsig.pdf', dpi=200,bbox_inches='tight')
+    plt.plot(years, pknumreq)
+    #plt.legend()
+    plt.xlabel("Time (years)")
+    plt.ylabel("Blocking threshold (No. req.)")
+    plt.savefig('zpkBTvstime.pdf', dpi=200,bbox_inches='tight')
     plt.show() 
-    
-    plt.plot(numsig, thrptvp, label="GP")
-    plt.plot(numsig, thrptf, label="FM")
-    plt.legend()    
-    plt.xlabel("$\sigma$")
-    plt.ylabel("Spectral Efficiency (bits/sym)")
-    plt.savefig('zThrptvsnsig.pdf', dpi=200,bbox_inches='tight')
-    plt.show() 
-    
-    Rs = 32
-    totthrptvp = thrptvp*avaavevp*Rs*1e-2
-    totthrptf = thrptf*avaavef*Rs*1e-2
-    
-    plt.plot(numsig, totthrptvp, label="GP")
-    plt.plot(numsig, totthrptf, label="FM")
-    plt.legend()
-    plt.xlabel("$\sigma$")
-    plt.ylabel("Average throughput (Gb/s)")
-    plt.savefig('zTotalthrptvsnsig.pdf', dpi=200,bbox_inches='tight')
-    plt.show() 
-    
-    plt.plot(numsig, Umnvp, label="GP")
-    plt.plot(numsig, Umnf, label="FM")
-    plt.legend()
-    plt.xlabel("$\sigma$")
-    plt.ylabel("Unallocated margin (dB)")
-    plt.savefig('zUmvsnsig.pdf', dpi=200,bbox_inches='tight')
-    plt.show() 
-    
+
+
