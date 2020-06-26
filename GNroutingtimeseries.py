@@ -98,7 +98,7 @@ edgesAL = {'1':{'4':0,'5':1},'2':{'3':2,'7':3},'3':{'2':4,'8':5},
 numedgesAL = 28
 LspansAL = 100
 # choose 'active' topology 
-graphA = graphD
+graphA = graphAL
 if graphA == graphN:
     graphnormA = graphnormN
     numedgesA = numedgesN
@@ -344,6 +344,93 @@ if datagen == False:
     linkPopt = np.empty([numyears,1])
     for i in range(numyears):
         linkSNR[i], linkPopt[i] = importdat(LspansA,numedgesA, i)
+# %% data generation for long-term heteroscedastic GP
+hetdatagen = False
+if hetdatagen:
+    def datatshet(edgelen, Lspans, numlam, NF,sd, alpha, yearind):
+                
+            Ls = Lspans
+            NchNy = numlam
+            D = Disp
+            gam = NLco
+            lam = 1550 # operating wavelength centre [nm]
+            f = 299792458/(lam*1e-9) # operating frequency [Hz]
+            c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
+            Rs = 32 # symbol rate [GBaud]
+            h = 6.63*1e-34  # Planck's constant [Js]
+            BWNy = (NchNy*Rs)/1e3 
+            #BWNy = (157*Rs)/1e3 # full 5THz BW
+            allin = np.log((10**(alpha/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
+            beta2 = (D*(lam**2))/(2*np.pi*c) # dispersion coefficient at given wavelength [ps^2/km]
+            Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
+            Leffa = 1/(2*allin)  # the asymptotic effective length [km]  
+            numspans = int(edgelen/Lspans)
+            
+            numpch = len(PchdBm)
+            Pchsw = 1e-3*10**(PchdBm/10)  # ^ [W]
+            Gwdmsw = (Pchsw*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
+            GnliEq13sw = 1e24*(8/27)*(gam**2)*(Gwdmsw**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))
+            G = alpha*Ls
+            NFl = 10**(NF/10) 
+            Gl = 10**(G/10) 
+            Pasesw = NFl*h*f*(Gl - 1)*Rs*1e9 # [W] the ASE noise power in one Nyquist channel across all spans
+            snrsw = (Pchsw)/(Pasesw*np.ones(numpch) + GnliEq13sw*Rs*1e9)
+            Popt = PchdBm[np.argmax(snrsw)]     
+            #Pun = GNmain(Lspans, 1, numlam, 101, 201, alpha, Disp, PchdBm, NF, NLco,False,numpoints)[0] 
+            #Popt = PchdBm[np.argmax(Pun)]  
+            
+            Gwdm = (1e-3*10**(Popt/10)*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
+            Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
+            Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
+            Pch = 1e-3*10**(Popt/10) 
+            snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxagingh[yearind] + oxcagingh[yearind]) # subtract static ageing effects
+            snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1) # add TRx B2B noise 
+            #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
+            sdnorm = sd*(edgelen/1000.0) # noise on each link is assumed to be proportional to the link length 
+            return lin2db(snr) + np.random.normal(0,sdnorm,1), Popt 
+        
+    def hetsave(edgelens, numedges,Lspans, yearind):    
+            linkSNR = np.empty([numedges,1])
+            for i in range(numedges):
+                linkSNR[i], linkPopt = datatshet(edgelens[i],Lspans,numlamh[yearind], NFh[yearind], sdh[yearind], alphah[yearind], yearind)
+            TRxSNR = 26 # add TRx noise of 26dB B2B 
+            linkSNR = lin2db( 1/(  1/(db2lin(linkSNR)) + 1/(db2lin(TRxSNR))  ))
+            linkSNR = linkSNR.reshape(numedges)
+    # =============================================================================
+    #         if graphA == graphN:
+    #             np.savetxt('tsSNRN' + str(int(yearind)) + '.csv', linkSNR, delimiter=',') 
+    #             linkPopt = linkPopt.reshape(1,1)
+    #             np.savetxt('tsPoptN' + str(int(yearind)) + '.csv', linkPopt, delimiter=',') 
+    #         elif graphA == graphD:
+    #             np.savetxt('tsSNRD' + str(int(yearind)) + '.csv', linkSNR, delimiter=',') 
+    #             linkPopt = linkPopt.reshape(1,1)
+    #             np.savetxt('tsPoptD' + str(int(yearind)) + '.csv', linkPopt, delimiter=',') 
+    #         elif graphA == graphAL:
+    #             np.savetxt('tsSNRAL' + str(int(yearind)) + '.csv', linkSNR, delimiter=',')
+    #             linkPopt = linkPopt.reshape(1,1)
+    #             np.savetxt('tsPoptAL' + str(int(yearind)) + '.csv', linkPopt, delimiter=',') 
+    # =============================================================================
+            return linkSNR, linkPopt
+    numphet = 5  
+    numyrsh = 100
+    yearsh = np.linspace(0,10,numyrsh)
+    numlamh = np.linspace(30,150,numyrsh,dtype=int)
+    NFh = np.linspace(4.5,5.5,numyrsh)
+    sdh = np.linspace(0.04,0.08,numyrsh)
+    alphah = 0.2 + 0.00163669*yearsh
+    hetdata = np.empty([numyrsh,numedgesA])
+    trxagingh = ((1 + 0.05*yearsh)*2).reshape(np.size(yearsh),1) 
+    oxcagingh = ((0.03 + 0.007*yearsh)*2).reshape(np.size(yearsh),1)
+    #linkPopt = np.empty([numyears,1])
+    for i in range(numyrsh):
+        hetdata[i], _ = hetsave(edgelensA, numedgesA, LspansA, i)
+    hetdata = np.transpose(hetdata)
+    if graphA == graphN:
+        np.savetxt('hetdataN.csv', hetdata, delimiter=',') 
+    elif graphA == graphD:
+        np.savetxt('hetdataD.csv', hetdata, delimiter=',') 
+    elif graphA == graphAL:
+        np.savetxt('hetdataAL.csv', hetdata, delimiter=',') 
 # %% plotting Popt vs time
 # =============================================================================
 # x = np.linspace(0,numpoints-1,numpoints)
@@ -420,6 +507,10 @@ if GPtraining == False:
         for j in range(numedgesA):
             prmn[i][j] = np.mean(prmnt[j])
         sigma[i] = sigmat 
+
+
+
+
 # %% 
 def fmsnr(edgelen, Lspans, numlam, NF, alpha, yearind):
         Ls = Lspans
