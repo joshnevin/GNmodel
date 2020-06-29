@@ -20,7 +20,92 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from sklearn.preprocessing import StandardScaler
 import cProfile
+from scipy.special import erfc
 
+# %% import MS data and find the variance 
+
+def BERcalc(M, SNR): # linear SNR here is energy per symbol - need to convert to energy per bit to use these formulae - hence the division by log2(M)
+        if M == 2: 
+            BER = 0.5*special.erfc(((2*SNR)/np.log2(2))**0.5)
+        elif M == 4: 
+            BER = 0.5*special.erfc(((2*SNR)/np.log2(4))**0.5)    
+        elif M == 16:
+            BER = (3/8)*special.erfc(((2/5)*(SNR/np.log2(16)))**0.5) + (1/4)*special.erfc(((18/5)*(SNR/np.log2(16)))**0.5) - (1/8)*special.erfc((10*(SNR/np.log2(16)))**0.5)
+        elif M == 64:
+            BER = (7/24)*special.erfc(((1/7)*(SNR/np.log2(64)))**0.5) + (1/4)*special.erfc(((9/7)*(SNR/np.log2(64)))**0.5) - (1/24)*special.erfc(((25/7)*(SNR/np.log2(64)))**0.5) + (1/24)*special.erfc(((81/7)*(SNR/np.log2(64)))**0.5) - (1/24)*special.erfc(((169/7)*(SNR/np.log2(64)))**0.5) 
+        else:
+            print("unrecognised modulation format")
+        return BER
+
+def mssdcalc(f, clipind):
+    #f = open("channel_1_segment_1.txt", "r")
+    clipind = int(clipind)
+    print(clipind)
+    numsamples = 1000 #32252
+    msd = np.empty([numsamples,1])
+    next(f)
+    for i in range(numsamples):
+        msdl = f.readline()
+        msd[i] = msdl[20:clipind].strip()
+    msber = 0.5*erfc(msd/(2**0.5))
+    
+    msvar = np.var(msber)
+    mssd = msvar**0.5
+    return mssd
+numchannels = 150
+sg1sd = np.empty([numchannels,1])
+for i in range(numchannels):
+    print(i)
+    if i < 40: 
+        sg1sd[i] = mssdcalc(open("channel_" + str(i+1) + "_segment_1.txt", "r"), 25)
+    elif i < 60:
+        sg1sd[i] = mssdcalc(open("channel_" + str(i+1) + "_segment_2.txt", "r"), 25)
+    elif i < 100:
+        sg1sd[i] = mssdcalc(open("channel_" + str(i+1) + "_segment_3.txt", "r"), 25)
+    elif i < 130:
+        sg1sd[i] = mssdcalc(open("channel_" + str(i+1) + "_segment_4.txt", "r"), 24)  
+    elif i < 150:
+        sg1sd[i] = mssdcalc(open("channel_" + str(i+1) + "_segment_5.txt", "r"), 25)
+# =============================================================================
+#     elif i < 190:
+#         sg1sd[i] = mssdcalc(open("channel_" + str(i+1) + "_segment_6.txt", "r"), 25)
+#     elif i < 240:
+#         sg1sd[i] = mssdcalc(open("channel_" + str(i+1) + "_segment_7.txt", "r"), 25)
+#     elif i < 290:
+#         sg1sd[i] = mssdcalc(open("channel_" + str(i+1) + "_segment_8.txt", "r"), 25)
+#     elif i < 330:
+#         sg1sd[i] = mssdcalc(open("channel_" + str(i+1) + "_segment_9.txt", "r"), 25)
+#     else:
+#         sg1sd[i] = mssdcalc(open("channel_" + str(i+1) + "_segment_10.txt", "r"), 25)
+# =============================================================================
+    
+sg1sdmean = np.mean(sg1sd)
+
+# %%
+#test = (open("channel_101_segment_4.txt", "r"))
+test = (open("channel_1_segment_1.txt", "r"))
+#test.readline()
+# =============================================================================
+# test.readline()
+# test.readline()
+# test.readline()
+# test.readline()
+# test.readline()
+# test.readline()
+# test.readline()
+# test.readline()
+# test.readline()
+# test.readline()
+# test.readline()
+# test.readline()
+# test.readline()
+# 
+# =============================================================================
+testrd = test.readline()
+#test = '8.1\t-'
+teststr = testrd[20:25].strip()
+
+# %%
 datagen = False
 GPtraining = False
 numpoints = 100
@@ -231,7 +316,7 @@ def fmdatagentest(edgelens,Lspans, numlam, NF, alpha):
         marginSNR[i] = marginsnrtest(edgelens[i],Lspans, numlam, NF, alpha)
     return marginSNR
 
-testlen = 4800.0     # all ageing effects modelled using values in: Faster return of investment in WDM networks when elastic transponders dynamically fit ageing of link margins, Pesic et al.
+testlen = 3000.0     # all ageing effects modelled using values in: Faster return of investment in WDM networks when elastic transponders dynamically fit ageing of link margins, Pesic et al.
 years = np.linspace(0,10,21) # define how many years are in the lifetime of the network and the resolution 
 numyears = np.size(years)
 sd = np.linspace(0.04, 0.08, np.size(years)) # added SNR uncertainty SD - assumed to double over lifetime
@@ -241,19 +326,19 @@ alpha = 0.2 + 0.00163669*years # define the fibre ageing due to splice losses ov
 trxaging = ((1 + 0.05*years)*2).reshape(np.size(years),1) # define TRx ageing 
 oxcaging = ((0.03 + 0.007*years)*2).reshape(np.size(years),1) # define filter ageing, assuming two filters per link, one at Tx and one at Rx
 # =============================================================================
-# testsnrnli = np.empty([np.size(years),1])
-# nliampmargin = np.empty([np.size(years),1])
-# testsnrjustfibre = np.empty([np.size(years),1])
-# for i in range(np.size(years)):
-#     testsnrnli[i] = marginsnrtest(testlen, LspansA, numlam[i], NF[i], alpha[i])
-# testfinalsnr = ( testsnrnli - (trxaging + oxcaging)) 
-# plt.plot(years, testsnrnli, label = 'SNR with NF, NLI + FA')
-# plt.plot(years, testfinalsnr, label = 'SNR - TRx + filtering')
-# plt.xlabel("years")
-# plt.ylabel("SNR (dB)")
-# plt.legend()
-# plt.savefig('marginvarsnr.pdf', dpi=200,bbox_inches='tight')
-# plt.show()
+testsnrnli = np.empty([np.size(years),1])
+nliampmargin = np.empty([np.size(years),1])
+testsnrjustfibre = np.empty([np.size(years),1])
+for i in range(np.size(years)):
+    testsnrnli[i] = marginsnrtest(testlen, LspansA, numlam[i], NF[i], alpha[i])
+testfinalsnr = ( testsnrnli - (trxaging + oxcaging)) 
+plt.plot(years, testsnrnli, label = 'SNR with NF, NLI + FA')
+plt.plot(years, testfinalsnr, label = 'SNR - TRx + filtering')
+plt.xlabel("years")
+plt.ylabel("SNR (dB)")
+plt.legend()
+plt.savefig('marginvarsnr.pdf', dpi=200,bbox_inches='tight')
+plt.show()
 # =============================================================================
 # find the worst-case margin required
 fmD = np.empty([numedgesA,1])
@@ -508,9 +593,6 @@ if GPtraining == False:
             prmn[i][j] = np.mean(prmnt[j])
         sigma[i] = sigmat 
 
-
-
-
 # %% 
 def fmsnr(edgelen, Lspans, numlam, NF, alpha, yearind):
         Ls = Lspans
@@ -560,19 +642,7 @@ def fmdatagen(edgelens,Lspans, yearind):    # this generates a GN model SNR valu
 fmSNR = np.empty([numyears, numedgesA, 1])
 for i in range(numyears):
     fmSNR[i] = fmdatagen(edgelensA,LspansA,i)
-# %%
-def BERcalc(M, SNR): # linear SNR here is energy per symbol - need to convert to energy per bit to use these formulae - hence the division by log2(M)
-        if M == 2: 
-            BER = 0.5*special.erfc(((2*SNR)/np.log2(2))**0.5)
-        elif M == 4: 
-            BER = 0.5*special.erfc(((2*SNR)/np.log2(4))**0.5)    
-        elif M == 16:
-            BER = (3/8)*special.erfc(((2/5)*(SNR/np.log2(16)))**0.5) + (1/4)*special.erfc(((18/5)*(SNR/np.log2(16)))**0.5) - (1/8)*special.erfc((10*(SNR/np.log2(16)))**0.5)
-        elif M == 64:
-            BER = (7/24)*special.erfc(((1/7)*(SNR/np.log2(64)))**0.5) + (1/4)*special.erfc(((9/7)*(SNR/np.log2(64)))**0.5) - (1/24)*special.erfc(((25/7)*(SNR/np.log2(64)))**0.5) + (1/24)*special.erfc(((81/7)*(SNR/np.log2(64)))**0.5) - (1/24)*special.erfc(((169/7)*(SNR/np.log2(64)))**0.5) 
-        else:
-            print("unrecognised modulation format")
-        return BER
+
 # %%    
 def getlinklen(shpath,graph,edges):  # function used in routing 
         linklen = np.empty([len(shpath)-1,1])
