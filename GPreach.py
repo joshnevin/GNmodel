@@ -88,7 +88,7 @@ edgesAL = {'1':{'4':0,'5':1},'2':{'3':2,'7':3},'3':{'2':4,'8':5},
 numedgesAL = 28
 LspansAL = 100
 
-graphA = graphD
+graphA = graphAL
 if graphA == graphN:
     graphnormA = graphnormN
     numedgesA = numedgesN
@@ -189,6 +189,8 @@ def fmdatagentest(edgelens,Lspans, numlam, NF, alpha):
         marginSNR[i] = marginsnrtest(edgelens[i],Lspans, numlam, NF, alpha)
     return marginSNR
 
+OSNRmeasBW = 12.478 # OSNR measurement BW [GHz]
+Rs = 32 # Nyquist channel spacing [GHz]
 testlen = 1000.0     # all ageing effects modelled using values in: Faster return of investment in WDM networks when elastic transponders dynamically fit ageing of link margins, Pesic et al.
 years = np.linspace(0,10,21) # define how many years are in the lifetime of the network and the resolution 
 numyears = np.size(years)
@@ -196,15 +198,15 @@ sd = np.linspace(0.04, 0.08, np.size(years)) # added SNR uncertainty SD - assume
 numlam = np.linspace(30, 150, np.size(years)) # define the channel loading over the network lifetime 
 NF = np.linspace(4.5,5.5,np.size(years)) # define the NF ageing of the amplifiers 
 alpha = 0.2 + 0.00163669*years # define the fibre ageing due to splice losses over time 
-trxaging = ((1 + 0.05*years)*2).reshape(np.size(years),1) # define TRx ageing 
-oxcaging = ((0.03 + 0.007*years)*2).reshape(np.size(years),1) # define filter ageing, assuming two filters per link, one at Tx and one at Rx
+trxaging = ((1 + 0.05*years)*2).reshape(np.size(years),1)*(OSNRmeasBW/Rs) # define TRx ageing 
+oxcaging = ((0.03 + 0.007*years)*2).reshape(np.size(years),1)*(OSNRmeasBW/Rs) # define filter ageing, assuming two filters per link, one at Tx and one at Rx
 # =============================================================================
 
 # find the worst-case margin required                         
 fmD = sd[-1]*5 # D margin is defined as 5xEoL SNR uncertainty SD that is added
 fmDGI = sd[0]*5 
-fmT = trxaging[-1] + oxcaging[-1] + fmD # total static margin: amplifier ageing, NL loading and fibre ageing included in GN
-fmTGI = trxaging[0] + oxcaging[0] + fmDGI # total static margin: use the BoL values for GP initial planning case
+#fmT = trxaging[-1] + oxcaging[-1] + fmD # total static margin: amplifier ageing, NL loading and fibre ageing included in GN
+#fmTGI = trxaging[0] + oxcaging[0] + fmDGI # total static margin: use the BoL values for GP initial planning case
 
 
 
@@ -228,7 +230,7 @@ def GPtrain(x,y):
     return ystari, sigmai
 
 
-def fmsnr(edgelen, Lspans, numlam, NF, alpha):
+def fmsnr(edgelen, Lspans, numlam, NF, alpha, yearind):
         Ls = Lspans
         NchNy = numlam
         D = Disp
@@ -263,12 +265,11 @@ def fmsnr(edgelen, Lspans, numlam, NF, alpha):
         Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
         Pase = NF*h*f*(db2lin(alpha*Lspans) - 1)*Rs*1e9*numspans
         Pch = 1e-3*10**(Popt/10) 
-        #snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
-        snr = (Pch/(Pase + Gnli*Rs*1e9))
+        #snr = (Pch/(Pase + Gnli*Rs*1e9)) 
+        snr = (Pch/(Pase + Gnli*Rs*1e9)) - trxaging[yearind] - oxcaging[yearind]
         snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
-        return lin2db(snr) 
-
-
+        return lin2db(snr) #- trxaging[yearind] - oxcaging[yearind]
+    
 def SNRnew(edgelen,numlam, yearind):  # function for generating a new SNR value to test if uncertainty is dealt with
         Ls = LspansA
         NchNy = numlam    # numlam is an input here because the number of wavelengths actually established on a given link is used 
@@ -303,13 +304,14 @@ def SNRnew(edgelen,numlam, yearind):  # function for generating a new SNR value 
         Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
         Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*numspans
         Pch = 1e-3*10**(Popt/10) 
-        snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
+        snr = (Pch/(Pase + Gnli*Rs*1e9)) - trxaging[yearind] - oxcaging[yearind]
         snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
         #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
         sdnorm = sd[yearind]
-        return lin2db(snr) + np.random.normal(0,sdnorm,1)
+        return lin2db(snr) + np.random.normal(0,sdnorm,1) #- trxaging[yearind] - oxcaging[yearind]
     
-
+test1 = fmsnr(1200, 100, numlam[-1], NF[-1], alpha[-1], -1)
+test2 = SNRnew(1200,numlam[-1], -1)
 def SNRgen(edgelen,numlam, yearind):  # function for generating a new SNR value to test if uncertainty is dealt with
         Ls = LspansA
         NchNy = numlam    # numlam is an input here because the number of wavelengths actually established on a given link is used 
@@ -344,12 +346,12 @@ def SNRgen(edgelen,numlam, yearind):  # function for generating a new SNR value 
         Gnli = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
         Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*numspans
         Pch = 1e-3*10**(Popt/10) 
-        snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
+        snr = (Pch/(Pase + Gnli*Rs*1e9)) - trxaging[yearind] - oxcaging[yearind]
         snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
         #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
         sdnorm = sd[yearind]
-        return lin2db(snr) + np.random.normal(0,sdnorm,numpoints)
-
+        return lin2db(snr) + np.random.normal(0,sdnorm,numpoints) 
+test3 = SNRgen(1200,numlam[-1], -1)
 # define the FEC thresholds - all correspond to BER of 2e-2 (2% FEC)
 FT2 = 0.24 
 FT4 = 3.25 
@@ -375,44 +377,44 @@ FT128 = 22.35
 # %%
 
 def initreach(linklen):
-    gnSNR = np.empty([numyears,1])
-    for i in range(numyears):
-        gnSNR[i] = fmsnr(linklen, LspansA, numlam[i], NF[i], alpha[i])
+    
+    gnSNRF = fmsnr(linklen, LspansA, numlam[-1], NF[-1], alpha[-1], -1)
+    gnSNRG = fmsnr(linklen, LspansA, numlam[0], NF[0], alpha[0], 0)
     # fixed margin case
-    if gnSNR[-1] - fmT > FT128:
+    if gnSNRF - fmD > FT128:
         MF = 128
-        UmF = gnSNR[-1] - fmT - FT128
-    elif gnSNR[-1] - fmT > FT64:
+        UmF = gnSNRF - fmD - FT128
+    elif gnSNRF - fmD > FT64:
         MF = 64
-        UmF = gnSNR[-1] - fmT - FT64
-    elif gnSNR[-1] - fmT > FT16:
+        UmF = gnSNRF - fmD - FT64
+    elif gnSNRF - fmD > FT16:
         MF = 16
-        UmF = gnSNR[-1] - fmT - FT16
-    elif gnSNR[-1] - fmT > FT4:
+        UmF = gnSNRF - fmD - FT16
+    elif gnSNRF - fmD > FT4:
         MF = 4
-        UmF = gnSNR[-1] - fmT - FT4
-    elif gnSNR[-1] - fmT > FT2:
+        UmF = gnSNRF - fmD - FT4
+    elif gnSNRF - fmD > FT2:
         MF = 2
-        UmF = gnSNR[-1] - fmT - FT2
+        UmF = gnSNRF - fmD - FT2
     else:
         print("not able to establish a link")
 
     # GP case   
-    if gnSNR[0] - fmTGI > FT128:
+    if gnSNRG - fmDGI > FT128:
         MFG = 128
-        UmG = gnSNR[0] - fmTGI - FT128
-    elif gnSNR[0] - fmTGI > FT64:
+        UmG = gnSNRG - fmDGI - FT128
+    elif gnSNRG - fmDGI > FT64:
         MFG = 64
-        UmG = gnSNR[0] - fmTGI - FT64
-    elif gnSNR[0] - fmTGI > FT16:
+        UmG = gnSNRG - fmDGI - FT64
+    elif gnSNRG - fmDGI > FT16:
         MFG = 16
-        UmG = gnSNR[0] - fmTGI - FT16
-    elif gnSNR[0] - fmTGI > FT4:
+        UmG = gnSNRG - fmDGI - FT16
+    elif gnSNRG - fmDGI > FT4:
         MFG = 4
-        UmG = gnSNR[0] - fmTGI - FT4
-    elif gnSNR - fmTGI > FT2:
+        UmG = gnSNRG - fmDGI - FT4
+    elif gnSNRG - fmDGI > FT2:
         MFG = 2
-        UmG = gnSNR[0] - fmTGI - FT2
+        UmG = gnSNRG - fmDGI - FT2
     else:
         print("not able to establish a link")
     return MF, MFG, UmF, UmG
@@ -486,38 +488,57 @@ thrptfm = np.log2(totmodfm)*2*Rs
 totthrptfm = np.multiply(thrptfm,numlam.reshape(numyears,1))/1e3
 totUmfm = np.sum(UmFpl,axis=0).reshape(numyears,1)
 
-# %% plotting 
+totthrptdiff = totthrptgp - totthrptfm
 
+# %% plotting 
+if graphA == graphN:
+    prefix = 'N'
+elif graphA == graphAL:
+    prefix = 'AL'
+elif graphA == graphD:
+    prefix = 'D'
+    
 plt.plot(years, thrptgp, label = 'GP')
 plt.plot(years, thrptfm, label = 'FM')
 plt.xlabel("time (years)")
 plt.ylabel("total throughput per ch. (Gb/s)")
-plt.savefig('YtotalthrptperchD.pdf', dpi=200,bbox_inches='tight')
+plt.legend()
+plt.savefig('YtotalthrptperchAL.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 plt.plot(years, totthrptgp, label = 'GP')
 plt.plot(years, totthrptfm, label = 'FM')
 plt.xlabel("time (years)")
 plt.ylabel("total throughput (Tb/s)")
-plt.savefig('YtotalthrptD.pdf', dpi=200,bbox_inches='tight')
+plt.legend()
+plt.savefig('YtotalthrptAL.pdf', dpi=200,bbox_inches='tight')
 plt.show()
+
+plt.plot(years, totthrptdiff, label = 'GP - FM')
+plt.xlabel("time (years)")
+plt.ylabel("total throughput (Tb/s)")
+plt.legend()
+plt.savefig('YtotalthrptdiffAL.pdf', dpi=200,bbox_inches='tight')
+plt.show()
+
 
 plt.plot(years, totUmgp, label = 'GP')
 plt.plot(years, totUmfm, label = 'FM')
 plt.xlabel("time (years)")
 plt.ylabel("total U margin (dB)")
-plt.savefig('YtotalUD.pdf', dpi=200,bbox_inches='tight')
+plt.legend()
+plt.savefig('YtotalUAL.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 # %%
-linkind = 0
+linkind = 2
 
 plt.plot(years, Um[linkind], label = "GP")
 plt.plot(years, UmFpl[linkind], label = "FM")
 plt.xlabel("time (years)")
 plt.ylabel("U margin (dB)")
 plt.legend()
-plt.savefig('YonelinkUD.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('YonelinkUAL.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 plt.plot(years, modf[linkind], label = "GP")
@@ -525,7 +546,7 @@ plt.plot(years, mfpl[linkind], label = "FM")
 plt.xlabel("time (years)")
 plt.ylabel("QAM order")
 plt.legend()
-plt.savefig('YonelinkMFD.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('YonelinkMFAL.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 # %% heteroscedastic data generation
