@@ -1,18 +1,17 @@
 ################### imports ####################
 import numpy as np
 import matplotlib.pyplot as plt
-import multiprocessing
 import time 
 from scipy import special
 #from scipy.stats import iqr
 #from sklearn.gaussian_process import GaussianProcessRegressor
 #from sklearn.gaussian_process.kernels import RBF
-from GHquad import GHquad
-from NFmodelGNPy import nf_model
+#from GHquad import GHquad
+#from NFmodelGNPy import nf_model
 from NFmodelGNPy import lin2db
 from NFmodelGNPy import db2lin
-from GNf import GNmain
-import random
+#from GNf import GNmain
+#import random
 from dijkstra import dijkstra
 import matplotlib
 from sklearn.gaussian_process import GaussianProcessRegressor
@@ -88,7 +87,7 @@ edgesAL = {'1':{'4':0,'5':1},'2':{'3':2,'7':3},'3':{'2':4,'8':5},
 numedgesAL = 28
 LspansAL = 100
 
-graphA = graphAL
+graphA = graphN
 if graphA == graphN:
     graphnormA = graphnormN
     numedgesA = numedgesN
@@ -351,13 +350,15 @@ def SNRgen(edgelen,numlam, yearind):  # function for generating a new SNR value 
         #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
         sdnorm = sd[yearind]
         return lin2db(snr) + np.random.normal(0,sdnorm,numpoints) 
-test3 = SNRgen(1200,numlam[-1], -1)
-# define the FEC thresholds - all correspond to BER of 2e-2 (2% FEC)
-FT2 = 0.24 
-FT4 = 3.25 
-FT16 = 12.72
-FT64 = 18.43
-FT128 = 22.35
+test3 = SNRgen(4800,numlam[-1], -1)
+# define the FEC thresholds - all correspond to BER of 2e-2 (2% FEC) - given by MATLAB bertool 
+FT2 = 3.243 
+FT4 = 6.254 
+FT8 = 10.697
+FT16 = 12.707
+FT32 = 16.579
+FT64 = 18.432
+FT128 = 22.185
 
 # %% sigma check
 # =============================================================================
@@ -387,9 +388,15 @@ def initreach(linklen):
     elif gnSNRF - fmD > FT64:
         MF = 64
         UmF = gnSNRF - fmD - FT64
+    elif gnSNRF - fmD > FT32:
+        MF = 32
+        UmF = gnSNRF - fmD - FT32
     elif gnSNRF - fmD > FT16:
         MF = 16
         UmF = gnSNRF - fmD - FT16
+    elif gnSNRF - fmD > FT8:
+        MF = 8
+        UmF = gnSNRF - fmD - FT8
     elif gnSNRF - fmD > FT4:
         MF = 4
         UmF = gnSNRF - fmD - FT4
@@ -406,9 +413,15 @@ def initreach(linklen):
     elif gnSNRG - fmDGI > FT64:
         MFG = 64
         UmG = gnSNRG - fmDGI - FT64
+    elif gnSNRG - fmDGI > FT32:
+        MFG = 32
+        UmG = gnSNRG - fmDGI - FT32
     elif gnSNRG - fmDGI > FT16:
         MFG = 16
         UmG = gnSNRG - fmDGI - FT16
+    elif gnSNRG - fmDGI > FT8:
+        MFG = 8
+        UmG = gnSNRG - fmDGI - FT8
     elif gnSNRG - fmDGI > FT4:
         MFG = 4
         UmG = gnSNRG - fmDGI - FT4
@@ -440,9 +453,15 @@ def GPreach(linklen, numsig, yearind):
     elif (prmn - FT64)/sigma > numsig:
         FT = FT64
         mfG = 64
+    elif (prmn - FT32)/sigma > numsig:
+        FT = FT32
+        mfG = 32
     elif (prmn - FT16)/sigma > numsig:
         FT = FT16
         mfG = 16
+    elif (prmn - FT8)/sigma > numsig:
+        FT = FT8
+        mfG = 8
     elif (prmn - FT4)/sigma > numsig:
         FT = FT4
         mfG = 4
@@ -474,6 +493,22 @@ for i in range(numedgesA):
 # estblT = np.transpose(estbl)
 # =============================================================================
 # %% throughput calculation 
+if graphA == graphN:
+    np.savetxt('modfN.csv', modf, delimiter=',') 
+    np.savetxt('UmN.csv', Um, delimiter=',') 
+    np.savetxt('mfN.csv', mf, delimiter=',') 
+    np.savetxt('UmFN.csv', UmF, delimiter=',') 
+elif graphA == graphAL:
+    np.savetxt('modfAL.csv', modf, delimiter=',') 
+    np.savetxt('UmAL.csv', Um, delimiter=',') 
+    np.savetxt('mfAL.csv', mf, delimiter=',') 
+    np.savetxt('UmFAL.csv', UmF, delimiter=',')     
+if graphA == graphD:
+    np.savetxt('modfD.csv', modf, delimiter=',') 
+    np.savetxt('UmD.csv', Um, delimiter=',') 
+    np.savetxt('mfD.csv', mf, delimiter=',') 
+    np.savetxt('UmFD.csv', UmF, delimiter=',') 
+
 Rs = 32
 totmodgp = np.sum(modf,axis=0).reshape(numyears,1)
 thrptgp = np.log2(totmodgp)*2*Rs
@@ -488,22 +523,24 @@ thrptfm = np.log2(totmodfm)*2*Rs
 totthrptfm = np.multiply(thrptfm,numlam.reshape(numyears,1))/1e3
 totUmfm = np.sum(UmFpl,axis=0).reshape(numyears,1)
 
-totthrptdiff = totthrptgp - totthrptfm
-
+totthrptdiff = ((totthrptgp - totthrptfm)/totthrptfm)*100
+# record changes to the MF between QoT-based planning and network switch-on
+gpmfadjust = mfGi - np.transpose(modf)[0].reshape(numedgesA,1)
+    
 # %% plotting 
 if graphA == graphN:
-    prefix = 'N'
+    suffix = 'N'
 elif graphA == graphAL:
-    prefix = 'AL'
+    suffix = 'AL'
 elif graphA == graphD:
-    prefix = 'D'
+    suffix = 'D'
     
 plt.plot(years, thrptgp, label = 'GP')
 plt.plot(years, thrptfm, label = 'FM')
 plt.xlabel("time (years)")
 plt.ylabel("total throughput per ch. (Gb/s)")
 plt.legend()
-plt.savefig('YtotalthrptperchAL.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('Ytotalthrptperch' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 plt.plot(years, totthrptgp, label = 'GP')
@@ -511,14 +548,14 @@ plt.plot(years, totthrptfm, label = 'FM')
 plt.xlabel("time (years)")
 plt.ylabel("total throughput (Tb/s)")
 plt.legend()
-plt.savefig('YtotalthrptAL.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('Ytotalthrpt' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 plt.plot(years, totthrptdiff, label = 'GP - FM')
 plt.xlabel("time (years)")
-plt.ylabel("total throughput (Tb/s)")
+plt.ylabel("total throughput gain (%)")
 plt.legend()
-plt.savefig('YtotalthrptdiffAL.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('Ytotalthrptdiff' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 
@@ -527,7 +564,7 @@ plt.plot(years, totUmfm, label = 'FM')
 plt.xlabel("time (years)")
 plt.ylabel("total U margin (dB)")
 plt.legend()
-plt.savefig('YtotalUAL.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('YtotalU' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 # %%
@@ -538,7 +575,7 @@ plt.plot(years, UmFpl[linkind], label = "FM")
 plt.xlabel("time (years)")
 plt.ylabel("U margin (dB)")
 plt.legend()
-plt.savefig('YonelinkUAL.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('YonelinkU' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 plt.plot(years, modf[linkind], label = "GP")
@@ -546,11 +583,11 @@ plt.plot(years, mfpl[linkind], label = "FM")
 plt.xlabel("time (years)")
 plt.ylabel("QAM order")
 plt.legend()
-plt.savefig('YonelinkMFAL.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('YonelinkMF' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 # %% heteroscedastic data generation
-hetdatagen = False
+hetdatagen = True
 if hetdatagen:
     def datatshet(edgelen, Lspans, numlam, NF,sd, alpha, yearind):
                 
@@ -591,13 +628,13 @@ if hetdatagen:
             snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxagingh[yearind] + oxcagingh[yearind]) # subtract static ageing effects
             snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1) # add TRx B2B noise 
             #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
-            sdnorm = sd*(edgelen/1000.0) # noise on each link is assumed to be proportional to the link length 
-            return lin2db(snr) + np.random.normal(0,sdnorm,1), Popt 
+            sdnorm = sd # noise on each link is assumed to be proportional to the link length 
+            return lin2db(snr) + np.random.normal(0,sdnorm,1) 
         
     def hetsave(edgelens, numedges,Lspans, yearind):    
             linkSNR = np.empty([numedges,1])
             for i in range(numedges):
-                linkSNR[i], linkPopt = datatshet(edgelens[i],Lspans,numlamh[yearind], NFh[yearind], sdh[yearind], alphah[yearind], yearind)
+                linkSNR[i] = datatshet(edgelens[i],Lspans,numlamh[yearind], NFh[yearind], sdh[yearind], alphah[yearind], yearind)
             TRxSNR = 26 # add TRx noise of 26dB B2B 
             linkSNR = lin2db( 1/(  1/(db2lin(linkSNR)) + 1/(db2lin(TRxSNR))  ))
             linkSNR = linkSNR.reshape(numedges)
@@ -615,9 +652,9 @@ if hetdatagen:
     #             linkPopt = linkPopt.reshape(1,1)
     #             np.savetxt('tsPoptAL' + str(int(yearind)) + '.csv', linkPopt, delimiter=',') 
     # =============================================================================
-            return linkSNR, linkPopt
+            return linkSNR
     numphet = 5  
-    numyrsh = 100
+    numyrsh = 200
     yearsh = np.linspace(0,10,numyrsh)
     numlamh = np.linspace(30,150,numyrsh,dtype=int)
     NFh = np.linspace(4.5,5.5,numyrsh)
@@ -628,7 +665,7 @@ if hetdatagen:
     oxcagingh = ((0.03 + 0.007*yearsh)*2).reshape(np.size(yearsh),1)
     #linkPopt = np.empty([numyears,1])
     for i in range(numyrsh):
-        hetdata[i], _ = hetsave(edgelensA, numedgesA, LspansA, i)
+        hetdata[i] = hetsave(edgelensA, numedgesA, LspansA, i)
     hetdata = np.transpose(hetdata)
     if graphA == graphN:
         np.savetxt('hetdataN.csv', hetdata, delimiter=',') 
