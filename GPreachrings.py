@@ -37,6 +37,34 @@ numnodesT = 10
 numedgesT = 20
 LspansT = 100
 
+nodesB = ['1','2','3','4','5','6','7','8','9','10','11']
+
+graphB = {'1':{'2':160,'11':160},'2':{'1':160,'3':160},'3':{'2':160,'4':240},    
+         '4':{'3':240,'5':160},'5':{'4':160,'6':80},'6':{'5':80,'7':240}, '7':{'6':240,'8':80},
+         '8':{'7':80,'9':400}, '9':{'8':400,'10':160}, '10':{'9':160,'11':80}, '11':{'10':80,'1':160}
+         }
+edgesB = {'1':{'2':0,'11':1},'2':{'1':2,'3':3},'3':{'2':4,'4':5},    
+         '4':{'3':6,'5':7},'5':{'4':8,'6':9},'6':{'5':10,'7':11}, '7':{'6':12,'8':13},
+         '8':{'7':14,'9':15}, '9':{'8':16,'10':17}, '10':{'9':18,'11':19}, '11':{'10':20,'1':21}
+         }
+numnodesB = 11
+numedgesB = 22
+LspansB = 80
+
+nodesD = ['1','2','3','4','5','6','7','8','9','10','11','12']
+
+graphD = {'1':{'2':400,'12':160},'2':{'1':400,'3':240},'3':{'2':240,'4':320},    
+         '4':{'3':320,'5':240},'5':{'4':240,'6':160},'6':{'5':160,'7':80}, '7':{'6':80,'8':240},
+         '8':{'7':240,'9':240}, '9':{'8':240,'10':80}, '10':{'9':80,'11':80}, '11':{'10':80,'12':320}, '12':{'11':320,'1':160}
+         }
+edgesD = {'1':{'2':0,'12':1},'2':{'1':2,'3':3},'3':{'2':4,'4':5},    
+         '4':{'3':6,'5':7},'5':{'4':8,'6':9},'6':{'5':10,'7':11}, '7':{'6':12,'8':13},
+         '8':{'7':14,'9':15}, '9':{'8':16,'10':17}, '10':{'9':18,'11':19}, '11':{'10':20,'12':21}, '12':{'11':22,'1':23}
+         }
+numnodesD = 12
+numedgesD = 24
+LspansD = 80
+
 graphA = graphT
 if graphA == graphT:
     numnodesA = numnodesT
@@ -44,6 +72,13 @@ if graphA == graphT:
     nodesA = nodesT
     LspansA = LspansT
     edgesA = edgesT
+
+if graphA == graphB:
+    numnodesA = numnodesB
+    numedgesA = numedgesB
+    nodesA = nodesB
+    LspansA = LspansB
+    edgesA = edgesB
 
 def removekey(d, keysrc, keydes): # function for removing key from dict - used to remove blocked links 
     r = dict(d)                     # removes the link between nodes 'keysrc' and 'keydes'
@@ -513,6 +548,20 @@ if graphA == graphT:
     np.savetxt('rtmmfT.csv', rtmmf, delimiter=',') 
     np.savetxt('rtmUmT.csv', rtmUm, delimiter=',') 
     np.savetxt('rtmshcpT.csv', rtmshcp, delimiter=',') 
+if graphA == graphD:
+    np.savetxt('gpmfD.csv', gpmf, delimiter=',') 
+    np.savetxt('gpUmD.csv', gpUm, delimiter=',') 
+    np.savetxt('gpshcpD.csv', gpshcp, delimiter=',') 
+    np.savetxt('rtmmfD.csv', rtmmf, delimiter=',') 
+    np.savetxt('rtmUmD.csv', rtmUm, delimiter=',') 
+    np.savetxt('rtmshcpD.csv', rtmshcp, delimiter=',') 
+if graphA == graphB:
+    np.savetxt('gpmfB.csv', gpmf, delimiter=',') 
+    np.savetxt('gpUmB.csv', gpUm, delimiter=',') 
+    np.savetxt('gpshcpB.csv', gpshcp, delimiter=',') 
+    np.savetxt('rtmmfB.csv', rtmmf, delimiter=',') 
+    np.savetxt('rtmUmB.csv', rtmUm, delimiter=',') 
+    np.savetxt('rtmshcpB.csv', rtmshcp, delimiter=',') 
 
 # %%
 
@@ -645,7 +694,47 @@ ax1.legend(lns, labs, loc=0,ncol=2, prop={'size': 10})
 plt.savefig('totalthrptdiffnoloading.pdf', dpi=200,bbox_inches='tight')
 plt.show()
     
+# %%
 
+linkind1 = 2
+
+#imodfN = [int(i) for i in modfN[linkind1]]
+#imodfrtN = [int(i) for i in modfrtN[linkind1]]
+
+#imfplN = [int(i) for i in mfplN[linkind1]]
+y2lb = ['16','32']
+
+fig, ax1 = plt.subplots()
+ax2 = ax1.twinx()
+
+fmUmpl = fmUm*np.ones([numpths,numyears])
+fmmfpl = fmmf*np.ones([numpths,numyears])
+
+ln5 = ax1.plot(years, gpUm[linkind1],'--',color = 'b',label = 'GP U')
+ln4 = ax1.plot(years, rtmUm[linkind1],'--',color = 'g',label = 'RTM U')
+ln6 = ax1.plot(years, fmUmpl[linkind1],'--',color = 'r', label = "FM U")
+
+ln1 = ax2.plot(years, gpmf[linkind1],'-',color = 'g',label = 'RTM SE')
+ln2 = ax2.plot(years, rtmmf[linkind1],'-',color = 'b',label = 'GP SE')
+ln3 = ax2.plot(years, fmmfpl[linkind1],'-',color = 'r',label = 'FM SE')
+
+ax1.set_xlabel("time (years)")
+ax1.set_ylabel("U margin (dB)")
+ax2.set_ylabel("spectral efficiency (bits/sym)")
+
+ax1.set_xlim([years[0], years[-1]])
+#ax1.set_ylim([-1, 4])
+#ax2.set_ylim([1.9, 4.1])
+
+ax2.set_yticks([16,32])
+ax2.set_yticklabels(y2lb)
+lns = ln1+ln2+ln3+ln4+ln5+ln6
+labs = [l.get_label() for l in lns]
+ax1.legend(lns, labs, loc=0,ncol=2, prop={'size': 10})
+#plt.axis([years[0],years[-1],1.0,8.0])
+#plt.savefig('Ytotalthrptdiff' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('UmarginGPbenefit.pdf', dpi=200,bbox_inches='tight')
+plt.show()
 
 
 
