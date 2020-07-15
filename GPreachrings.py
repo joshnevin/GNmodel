@@ -65,7 +65,7 @@ numnodesD = 12
 numedgesD = 24
 LspansD = 80
 
-graphA = graphT
+graphA = graphD
 if graphA == graphT:
     numnodesA = numnodesT
     numedgesA = numedgesT
@@ -79,6 +79,13 @@ if graphA == graphB:
     nodesA = nodesB
     LspansA = LspansB
     edgesA = edgesB
+    
+if graphA == graphD:
+    numnodesA = numnodesD
+    numedgesA = numedgesD
+    nodesA = nodesD
+    LspansA = LspansD
+    edgesA = edgesD
 
 def removekey(d, keysrc, keydes): # function for removing key from dict - used to remove blocked links 
     r = dict(d)                     # removes the link between nodes 'keysrc' and 'keydes'
@@ -108,10 +115,49 @@ def findroutes(nodes, secondpath):
                     d2, p2 = dijkstra(shgraph , nodes[i], nodes[j])
                     dis.append(d2)
                     path.append(p2)
+    if graphA == graphB:
+        for i in range(numnodes):
+            for j in range(numnodes): 
+                if i == j:
+                    continue
+                d, p = dijkstra({'1':{'2':160,'11':160},'2':{'1':160,'3':160},'3':{'2':160,'4':240},    
+                                 '4':{'3':240,'5':160},'5':{'4':160,'6':80},'6':{'5':80,'7':240}, '7':{'6':240,'8':80},
+                                 '8':{'7':80,'9':400}, '9':{'8':400,'10':160}, '10':{'9':160,'11':80}, '11':{'10':80,'1':160}
+                                 } , nodes[i], nodes[j])
+                dis.append(d)
+                path.append(p)
+                if secondpath:
+                    shgraph = removekey({'1':{'2':160,'11':160},'2':{'1':160,'3':160},'3':{'2':160,'4':240},    
+                                         '4':{'3':240,'5':160},'5':{'4':160,'6':80},'6':{'5':80,'7':240}, '7':{'6':240,'8':80},
+                                         '8':{'7':80,'9':400}, '9':{'8':400,'10':160}, '10':{'9':160,'11':80}, '11':{'10':80,'1':160}
+                                         }, p[0],p[1])
+                    d2, p2 = dijkstra(shgraph , nodes[i], nodes[j])
+                    dis.append(d2)
+                    path.append(p2)
+    if graphA == graphD:
+        for i in range(numnodes):
+            for j in range(numnodes): 
+                if i == j:
+                    continue
+                d, p = dijkstra({'1':{'2':400,'12':160},'2':{'1':400,'3':240},'3':{'2':240,'4':320},    
+                                 '4':{'3':320,'5':240},'5':{'4':240,'6':160},'6':{'5':160,'7':80}, '7':{'6':80,'8':240},
+                                 '8':{'7':240,'9':240}, '9':{'8':240,'10':80}, '10':{'9':80,'11':80}, '11':{'10':80,'12':320}, '12':{'11':320,'1':160}
+                                 } , nodes[i], nodes[j])
+                dis.append(d)
+                path.append(p)
+                if secondpath:
+                    shgraph = removekey({'1':{'2':400,'12':160},'2':{'1':400,'3':240},'3':{'2':240,'4':320},    
+                                         '4':{'3':320,'5':240},'5':{'4':240,'6':160},'6':{'5':160,'7':80}, '7':{'6':80,'8':240},
+                                         '8':{'7':240,'9':240}, '9':{'8':240,'10':80}, '10':{'9':80,'11':80}, '11':{'10':80,'12':320}, '12':{'11':320,'1':160}
+                                         }, p[0],p[1])
+                    d2, p2 = dijkstra(shgraph , nodes[i], nodes[j])
+                    dis.append(d2)
+                    path.append(p2)
     return dis, path
         
-pthdists, pths = findroutes(nodesT,True)             
+pthdists, pths = findroutes(nodesA,True)             
 numpths = len(pthdists)
+
 # %% section 2: find the number of wavelengths on each link in the topology 
      
 def getlinklen(shpath,graph,edges):  # takes nodes traversed as input and returns the lengths of each link and the edge indices 
@@ -124,11 +170,11 @@ def getlinklen(shpath,graph,edges):  # takes nodes traversed as input and return
 
 edgeinds = [] # indices of each edge traversed for each path 
 edgelens = [] # lengths of each edge traversed for each path 
-numlamlk = np.zeros([numedgesT,1])
+numlamlk = np.zeros([numedgesA,1])
 for i in range(len(pths)):
-    edgeinds.append(getlinklen(pths[i], graphT, edgesT)[1])  # transparent network: only need total distance for each path 
+    edgeinds.append(getlinklen(pths[i], graphA, edgesA)[1])  # transparent network: only need total distance for each path 
     numlamlk[edgeinds[i]] = numlamlk[edgeinds[i]] + 1
-    edgelens.append(getlinklen(pths[i], graphT, edgesT)[0])  # transparent network: only need total distance for each path 
+    edgelens.append(getlinklen(pths[i], graphA, edgesA)[0])  # transparent network: only need total distance for each path 
 
 
 test, _ = getlinklen(pths[4], graphA, edgesA)
@@ -215,7 +261,7 @@ def SNRgen(pathind, yearind, nyqch):  # function for generating a new SNR value 
         Gnli = np.sum(Gnlisp)
         Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*totnumspans
         Pch = 1e-3*10**(Popt/10) 
-        snr = (Pch/(Pase + Gnli*Rs*1e9)) - trxaging[yearind] - oxcaging[yearind]
+        snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
         snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
         #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
         sdnorm = sd[yearind]
@@ -275,7 +321,7 @@ def fmsnr(pathind, yearind, nyqch):  # function for generating a new SNR value t
         Gnli = np.sum(Gnlisp)
         Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*totnumspans
         Pch = 1e-3*10**(Popt/10) 
-        snr = (Pch/(Pase + Gnli*Rs*1e9)) - trxaging[yearind] - oxcaging[yearind]
+        snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
         snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
         return lin2db(snr)  
 
@@ -333,7 +379,7 @@ def SNRnew(pathind, yearind, nyqch):  # function for generating a new SNR value 
         Gnli = np.sum(Gnlisp)
         Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*totnumspans
         Pch = 1e-3*10**(Popt/10) 
-        snr = (Pch/(Pase + Gnli*Rs*1e9)) - trxaging[yearind] - oxcaging[yearind]
+        snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
         snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
         #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
         sdnorm = sd[yearind]
@@ -536,7 +582,7 @@ for i in range(numpths):
         rtmmf[i][j], rtmestbl[i][j], rtmUm[i][j], rtmshcp[i][j] = rtmreach(i, 5, j, False)
 end = time.time()
 
-print("GP algorithm took" + str(end-start))
+print("GP algorithm took " + str((end-start)/60) + " minutes")
 
 
 # %% section 7: determine throughput for the ring network 
@@ -663,7 +709,7 @@ labs = [l.get_label() for l in lns]
 ax1.legend(lns, labs, loc=0,ncol=2, prop={'size': 10})
 #plt.axis([years[0],years[-1],1.0,8.0])
 #plt.savefig('Ytotalthrptdiff' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
-#plt.savefig('totalthrptnoloading.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('totalthrptnoloadingB.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 # %%
@@ -691,18 +737,18 @@ ax1.legend(lns, labs, loc=0,ncol=2, prop={'size': 10})
 #plt.axis([years[0],years[-1],1.0,8.0])
 #plt.savefig('Ytotalthrptdiff' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 #plt.savefig('JOCNtotalthrpt.pdf', dpi=200,bbox_inches='tight')
-plt.savefig('totalthrptdiffnoloading.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('totalthrptdiffnoloadingB.pdf', dpi=200,bbox_inches='tight')
 plt.show()
     
 # %%
 
-linkind1 = 2
+linkind1 = 43
 
 #imodfN = [int(i) for i in modfN[linkind1]]
 #imodfrtN = [int(i) for i in modfrtN[linkind1]]
 
 #imfplN = [int(i) for i in mfplN[linkind1]]
-y2lb = ['16','32']
+y2lb = ['3','4']
 
 fig, ax1 = plt.subplots()
 ax2 = ax1.twinx()
@@ -714,8 +760,8 @@ ln5 = ax1.plot(years, gpUm[linkind1],'--',color = 'b',label = 'GP U')
 ln4 = ax1.plot(years, rtmUm[linkind1],'--',color = 'g',label = 'RTM U')
 ln6 = ax1.plot(years, fmUmpl[linkind1],'--',color = 'r', label = "FM U")
 
-ln1 = ax2.plot(years, gpmf[linkind1],'-',color = 'g',label = 'RTM SE')
-ln2 = ax2.plot(years, rtmmf[linkind1],'-',color = 'b',label = 'GP SE')
+ln1 = ax2.plot(years, gpmf[linkind1],'-',color = 'g',label = 'GP SE')
+ln2 = ax2.plot(years, rtmmf[linkind1],'-',color = 'b',label = 'RTM SE')
 ln3 = ax2.plot(years, fmmfpl[linkind1],'-',color = 'r',label = 'FM SE')
 
 ax1.set_xlabel("time (years)")
@@ -726,14 +772,14 @@ ax1.set_xlim([years[0], years[-1]])
 #ax1.set_ylim([-1, 4])
 #ax2.set_ylim([1.9, 4.1])
 
-ax2.set_yticks([16,32])
+ax2.set_yticks([8,16])
 ax2.set_yticklabels(y2lb)
 lns = ln1+ln2+ln3+ln4+ln5+ln6
 labs = [l.get_label() for l in lns]
 ax1.legend(lns, labs, loc=0,ncol=2, prop={'size': 10})
 #plt.axis([years[0],years[-1],1.0,8.0])
 #plt.savefig('Ytotalthrptdiff' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
-plt.savefig('UmarginGPbenefit.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('UmarginGPbenefitB.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 
