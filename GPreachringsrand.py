@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time 
 import random
-from scipy import special
+#from scipy import special
 #from scipy.stats import iqr
 #from sklearn.gaussian_process import GaussianProcessRegressor
 #from sklearn.gaussian_process.kernels import RBF
@@ -19,8 +19,8 @@ import matplotlib
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from sklearn.preprocessing import StandardScaler
-import cProfile
-from scipy.special import erfc
+#import cProfile
+#from scipy.special import erfc
 
 # section 1: define topologies 
 
@@ -66,7 +66,7 @@ numnodesD = 12
 numedgesD = 24
 LspansD = 80
 
-graphA = graphD
+graphA = graphB
 if graphA == graphT:
     numnodesA = numnodesT
     numedgesA = numedgesT
@@ -131,64 +131,64 @@ def removekey(d, keysrc, keydes): # function for removing key from dict - used t
     return r    
 
 def SNRgen(pathind, yearind, nyqch, edgeinds, edgelens, numlamlk, pthdists, pths):  # function for generating a new SNR value to test if uncertainty is dealt with
-            Ls = LspansA
-            D = Disp          # rather than the worst-case number 
-            gam = NLco
-            lam = 1550 # operating wavelength centre [nm]
-            f = 299792458/(lam*1e-9) # operating frequency [Hz]
-            c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
-            Rs = 32 # symbol rate [GBaud]
-            h = 6.63*1e-34  # Planck's constant [Js]
-            allin = np.log((10**(alpha[yearind]/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
-            beta2 = (D*(lam**2))/(2*np.pi*c) # dispersion coefficient at given wavelength [ps^2/km]
-            Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
-            Leffa = 1/(2*allin)  # the asymptotic effective length [km]  
-            links = edgeinds[pathind] # links traversed by path
-            numlinks = len(links) # number of links traversed 
-            Gnlisp = np.empty([numlinks,1])
-            for i in range(numlinks):
-                numlam = numlamlk[links[i]][0] # select number wavelengths on given link
-                #print(numlam)
-                if nyqch:
-                    NchNy = numlam
-                    BWNy = (NchNy*Rs)/1e3 
-                else:
-                    NchRS = numlam
-                    Df = 50 # 50 GHz grid 
-                    BchRS = 41.6 # RS from GN model paper - raised cosine + roll-off of 0.3 
-               # ===================== find Popt for one span ==========================
-                numpch = len(PchdBm)
-                Pchsw = 1e-3*10**(PchdBm/10)  # ^ [W]
-                if nyqch:
-                    Gwdmsw = (Pchsw*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
-                    Gnlisw = 1e24*(8/27)*(gam**2)*(Gwdmsw**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))
-                else:
-                    Gwdmsw = Pchsw/(BchRS*1e9)
-                    Gnlisw = 1e24*(8/27)*(gam**2)*(Gwdmsw**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BchRS**2)*(NchRS**((2*BchRS)/Df))  ) )/(np.pi*beta2*Leffa ))
-                G = alpha[yearind]*Ls
-                NFl = 10**(NF[yearind]/10) 
-                Gl = 10**(G/10) 
-                Pasesw = NFl*h*f*(Gl - 1)*Rs*1e9 # [W] the ASE noise power in one Nyquist channel across all spans
-                snrsw = (Pchsw)/(Pasesw*np.ones(numpch) + Gnlisw*Rs*1e9)
-                Popt = PchdBm[np.argmax(snrsw)]  
+    Ls = LspansA
+    D = Disp          # rather than the worst-case number 
+    gam = NLco
+    lam = 1550 # operating wavelength centre [nm]
+    f = 299792458/(lam*1e-9) # operating frequency [Hz]
+    c = 299792.458 # speed of light in vacuum [nm/ps] -> needed for calculation of beta2
+    Rs = 32 # symbol rate [GBaud]
+    h = 6.63*1e-34  # Planck's constant [Js]
+    allin = np.log((10**(alpha[yearind]/10)))/2 # fibre loss [1/km] -> weird definition, due to exponential decay of electric field instead of power, which is standard 
+    beta2 = (D*(lam**2))/(2*np.pi*c) # dispersion coefficient at given wavelength [ps^2/km]
+    Leff = (1 - np.exp(-2*allin*Ls ))/(2*allin)  # effective length [km]      
+    Leffa = 1/(2*allin)  # the asymptotic effective length [km]  
+    links = edgeinds[pathind] # links traversed by path
+    numlinks = len(links) # number of links traversed 
+    Gnlisp = np.empty([numlinks,1])
+    for i in range(numlinks):
+        numlam = numlamlk[links[i]][0] # select number wavelengths on given link
+        #print(numlam)
+        if nyqch:
+            NchNy = numlam
+            BWNy = (NchNy*Rs)/1e3 
+        else:
+            NchRS = numlam
+            Df = 50 # 50 GHz grid 
+            BchRS = 41.6 # RS from GN model paper - raised cosine + roll-off of 0.3 
+            # ===================== find Popt for one span ==========================
+        numpch = len(PchdBm)
+        Pchsw = 1e-3*10**(PchdBm/10)  # ^ [W]
+        if nyqch:
+            Gwdmsw = (Pchsw*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
+            Gnlisw = 1e24*(8/27)*(gam**2)*(Gwdmsw**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))
+        else:
+            Gwdmsw = Pchsw/(BchRS*1e9)
+            Gnlisw = 1e24*(8/27)*(gam**2)*(Gwdmsw**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BchRS**2)*(NchRS**((2*BchRS)/Df))  ) )/(np.pi*beta2*Leffa ))
+        G = alpha[yearind]*Ls
+        NFl = 10**(NF[yearind]/10) 
+        Gl = 10**(G/10) 
+        Pasesw = NFl*h*f*(Gl - 1)*Rs*1e9 # [W] the ASE noise power in one Nyquist channel across all spans
+        snrsw = (Pchsw)/(Pasesw*np.ones(numpch) + Gnlisw*Rs*1e9)
+        Popt = PchdBm[np.argmax(snrsw)]  
             # =======================================================================
-                totnumspans = int(pthdists[pathind]/Ls) # total number of spans traversed for the path 
-                numspans = int(edgelens[pathind][i][0]/Ls) # number of spans traversed for each link in the path
-                if nyqch:
-                    Gwdm = (1e-3*10**(Popt/10)*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
-                    Gnlisp[i] = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
-                else:
-                    Gwdm = (1e-3*10**(Popt/10))/(BchRS*1e9)
-                    Gnlisp[i] = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BchRS**2)*(NchRS**((2*BchRS)/Df))  ) )/(np.pi*beta2*Leffa ))*numspans                                                                             
+        totnumspans = int(pthdists[pathind]/Ls) # total number of spans traversed for the path 
+        numspans = int(edgelens[pathind][i][0]/Ls) # number of spans traversed for each link in the path
+        if nyqch:
+            Gwdm = (1e-3*10**(Popt/10)*NchNy)/(BWNy*1e12) # flat-top value of PSD of signal [W/Hz]
+            Gnlisp[i] = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
+        else:
+            Gwdm = (1e-3*10**(Popt/10))/(BchRS*1e9)
+            Gnlisp[i] = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BchRS**2)*(NchRS**((2*BchRS)/Df))  ) )/(np.pi*beta2*Leffa ))*numspans                                                                             
                 
-            Gnli = np.sum(Gnlisp)
-            Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*totnumspans
-            Pch = 1e-3*10**(Popt/10) 
-            snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
-            snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
-            #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
-            sdnorm = sd[yearind]
-            return lin2db(snr) + np.random.normal(0,sdnorm,numpoints) 
+    Gnli = np.sum(Gnlisp)
+    Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*totnumspans
+    Pch = 1e-3*10**(Popt/10) 
+    snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
+    snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
+    #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
+    sdnorm = sd[yearind]
+    return lin2db(snr) + np.random.normal(0,sdnorm,numpoints) 
         
 def fmsnr(pathind, yearind, nyqch, edgeinds, edgelens, numlamlk, pthdists, pths):  # function for generating a new SNR value to test if uncertainty is dealt with
     Ls = LspansA
@@ -239,14 +239,13 @@ def fmsnr(pathind, yearind, nyqch, edgeinds, edgelens, numlamlk, pthdists, pths)
                 Gnlisp[i] = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BWNy**2)  ) )/(np.pi*beta2*Leffa ))*numspans
             else:
                 Gwdm = (1e-3*10**(Popt/10))/(BchRS*1e9)
-                Gnlisp[i] = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BchRS**2)*(NchRS**((2*BchRS)/Df))  ) )/(np.pi*beta2*Leffa ))*numspans                                                                             
-                
-        Gnli = np.sum(Gnlisp)
-        Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*totnumspans
-        Pch = 1e-3*10**(Popt/10) 
-        snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
-        snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
-        return lin2db(snr)  
+                Gnlisp[i] = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BchRS**2)*(NchRS**((2*BchRS)/Df))  ) )/(np.pi*beta2*Leffa ))*numspans                                                                                     
+    Gnli = np.sum(Gnlisp)
+    Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*totnumspans
+    Pch = 1e-3*10**(Popt/10) 
+    snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
+    snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
+    return lin2db(snr)  
     
 def SNRnew(pathind, yearind, nyqch, edgeinds, edgelens, numlamlk, pthdists, pths):  # function for generating a new SNR value to test if uncertainty is dealt with
     Ls = LspansA
@@ -566,7 +565,7 @@ def thrptcalcinitfm(fmmf, fmUm, numpths):
     return totthrptfm, totfmUm
 
 
-def thrptcalc(gpmf, gpUm, gpshcp, rtmmf, rtmUm, rtmshcp, numpths, totthrptfm):
+def thrptcalc(gpmf, gpUm, gpshcp, rtmmf, rtmUm, rtmshcp, numpths):
     ratesgp = np.empty([numpths,1])
     ratesrtm = np.empty([numpths,1])
     FECOH = 0.2
@@ -575,18 +574,13 @@ def thrptcalc(gpmf, gpUm, gpshcp, rtmmf, rtmUm, rtmshcp, numpths, totthrptfm):
         ratesrtm[i] = rateconv(rtmmf[i][0])
     totthrptgp = np.sum(ratesgp, axis=0)/1e3
     totthrptrtm = np.sum(ratesrtm, axis=0)/1e3
-    totgpshcp = np.sum(gpshcp,axis=0).reshape(numyears,1)*Rs*(1-FECOH)*2/1e3
-    totrtmshcp = np.sum(rtmshcp,axis=0).reshape(numyears,1)*Rs*(1-FECOH)*2/1e3
+    totgpshcp = np.sum(gpshcp,axis=0)*Rs*(1-FECOH)*2/1e3
+    totrtmshcp = np.sum(rtmshcp,axis=0)*Rs*(1-FECOH)*2/1e3
 
-    totUmgp = np.sum(gpUm,axis=0).reshape(numyears,1)
-    totUmrtm = np.sum(rtmUm,axis=0).reshape(numyears,1)
-     
-    totthrptdiffgp = ((totthrptgp - totthrptfm)/totthrptfm)*100
-    totthrptdiffrtm = ((totthrptrtm - totthrptfm)/totthrptfm)*100
-    
-    totthrptdiffsh = ((totgpshcp - totthrptfm)/totthrptfm)*100
+    totUmgp = np.sum(gpUm,axis=0)
+    totUmrtm = np.sum(rtmUm,axis=0)
  
-    return totthrptgp, totUmgp, totthrptdiffgp, totgpshcp, totthrptrtm, totUmrtm, totthrptdiffrtm, totrtmshcp, totthrptdiffsh
+    return totthrptgp, totUmgp, totgpshcp, totthrptrtm, totUmrtm,  totrtmshcp
 
 def rateconv(modfor):
     if modfor == 2:
@@ -612,16 +606,19 @@ def randyearloop(initreq, numreqcum):
     rtmUmsave = []
     rtmmfsave = []
     
+    numlamwc = 80*np.ones([numedgesA,1])
     
+    totfmUm = np.empty([numyears,1])
+    totthrptfm = np.empty([numyears,1])
     totthrptgp = np.empty([numyears,1])
     totUmgp = np.empty([numyears,1])
-    totthrptdiffgp = np.empty([numyears,1])
+    #totthrptdiffgp = np.empty([numyears,1])
     totgpshcp = np.empty([numyears,1])
     totthrptrtm = np.empty([numyears,1])
     totUmrtm = np.empty([numyears,1])
-    totthrptdiffrtm = np.empty([numyears,1])
+    #totthrptdiffrtm = np.empty([numyears,1])
     totrtmshcp = np.empty([numyears,1])
-    totthrptdiffsh = np.empty([numyears,1])
+    #totthrptdiffsh = np.empty([numyears,1])
     
     for i in range(numyears):
         
@@ -647,16 +644,10 @@ def randyearloop(initreq, numreqcum):
             for l in range(numpths):
                 gpimf[l],  gpiUm[l] = gpireach(l, edgeinds, edgelens, numlamlk, pthdists, pths)
             totthrptgpi, totgpiUm = thrptcalcinitgpi(gpimf, gpiUm, numpths)
-                
-        if i == numyears - 1:
-            fmmf = np.empty([numpths,1]) # fixed margin modulation format 
-            fmUm = np.empty([numpths,1]) # fixed margin U margins 
-            for z in range(numpths):
-                fmmf[z],  fmUm[z] = fmreach(z, edgeinds, edgelens, numlamlk, pthdists, pths)  
-            totthrptfm, totfmUm = thrptcalcinitfm(fmmf, fmUm, numpths)
             
         #  section 6: implement GP reach algorithm
-     
+        fmmf = np.empty([numpths,1]) # fixed margin modulation format 
+        fmUm = np.empty([numpths,1]) # fixed margin U margins 
         gpmf = np.empty([numpths,1])
         gpestbl = np.empty([numpths,1])
         gpUm = np.empty([numpths,1])
@@ -668,94 +659,85 @@ def randyearloop(initreq, numreqcum):
         start = time.time()
         for j in range(numpths):
               # change this later - will need to implement a time loop for the whole script, put it all in a big function
+            fmmf[j],  fmUm[j] = fmreach(j, edgeinds, edgelens, numlamwc, pthdists, pths)  
             gpmf[j], gpestbl[j], gpUm[j], gpshcp[j] = GPreach(j, 5, i, False, edgeinds, edgelens, numlamlk, pthdists, pths)
             rtmmf[j], rtmestbl[j], rtmUm[j], rtmshcp[j] = rtmreach(j, 5, i, False, edgeinds, edgelens, numlamlk, pthdists, pths)
         end = time.time()
         
-        print("GP algorithm took " + str((end-start)/60) + " minutes")
+        print("Iter " + str(i) + " took " + str( '%.3f' % ((end-start)/60)  ) + " minutes")
         
         gpUmsave.append(gpUm)
         gpmfsave.append(gpmf)
         rtmUmsave.append(rtmUm)
         rtmmfsave.append(rtmmf)
-        
     
-        totthrptgp[i], totUmgp[i], totthrptdiffgp[i],totgpshcp[i], totthrptrtm[i], totUmrtm[i], totthrptdiffrtm[i], totrtmshcp[i], totthrptdiffsh[i] = thrptcalc(gpmf, gpUm, gpshcp, rtmmf, rtmUm, rtmshcp, numpths, totthrptfm)
+        totthrptgp[i], totUmgp[i], totgpshcp[i], totthrptrtm[i], totUmrtm[i], totrtmshcp[i] = thrptcalc(gpmf, gpUm, gpshcp, rtmmf, rtmUm, rtmshcp, numpths)
+        totthrptfm[i], totfmUm[i] = thrptcalcinitfm(fmmf, fmUm, numpths)
     
+    return totthrptgpi, totgpiUm, totthrptfm, totfmUm, totthrptgp, totUmgp, totgpshcp, totthrptrtm, totUmrtm, totrtmshcp,  gpUmsave, gpmfsave, rtmUmsave, rtmmfsave
     
-    return totthrptgpi, totgpiUm, totthrptfm, totfmUm, totthrptgp, totUmgp, totthrptdiffgp, totgpshcp, totthrptrtm, totUmrtm, totthrptdiffrtm, totrtmshcp, totthrptdiffsh, gpUmsave, gpmfsave, rtmUmsave, rtmmfsave
-    
-totthrptgpi, totgpiUm, totthrptfm, totfmUm, totthrptgp, totUmgp, totthrptdiffgp, totgpshcp, totthrptrtm, totUmrtm, totthrptdiffrtm, totrtmshcp, totthrptdiffsh, gpUmsave, gpmfsave, rtmUmsave, rtmmfsave = randyearloop(20, numreqcum)
+# %% Run algorithm
+
+totthrptgpi, totgpiUm, totthrptfm, totfmUm, totthrptgp, totUmgp, totgpshcp, totthrptrtm, totUmrtm, totrtmshcp,  gpUmsave, gpmfsave, rtmUmsave, rtmmfsave = randyearloop(20, numreqcum)
 
 # %% section 7: determine throughput for the ring network 
 
+gpthrptben = totthrptgp - totthrptrtm
+
+totthrptdiffgp = ((totthrptgp - totthrptfm)/totthrptfm)*100
+
+totthrptdiffrtm = ((totthrptrtm - totthrptfm)/totthrptfm)*100
+
+totthrptdiffsh = ((totgpshcp - totthrptfm)/totthrptfm)*100
+
+
 if graphA == graphT:
-    np.savetxt('totthrptfmrdT.csv', totthrptfm, delimiter=',') 
     np.savetxt('totthrptgpirdT.csv', totthrptgpi, delimiter=',') 
-    np.savetxt('totthrptdiffirdT.csv', totthrptdiffi, delimiter=',') 
+    np.savetxt('totgpiUmrdT.csv', totgpiUm, delimiter=',') 
+    np.savetxt('totthrptfmrdT.csv', totthrptfm, delimiter=',') 
     np.savetxt('totfmUmrdT.csv', totfmUm, delimiter=',') 
-    np.savetxt('totgpUmrdT.csv', totgpUm, delimiter=',') 
     np.savetxt('totthrptgprdT.csv', totthrptgp, delimiter=',') 
     np.savetxt('totUmgprdT.csv', totUmgp, delimiter=',') 
-    np.savetxt('totthrptdiffgprdT.csv', totthrptdiffgp, delimiter=',') 
     np.savetxt('totgpshcprdT.csv', totgpshcp, delimiter=',') 
     np.savetxt('totthrptrtmrdT.csv', totthrptrtm, delimiter=',') 
     np.savetxt('totUmrtmrdT.csv', totUmrtm, delimiter=',') 
-    np.savetxt('totthrptdiffrtmrdT.csv', totthrptdiffrtm, delimiter=',') 
     np.savetxt('totrtmshcprdT.csv', totrtmshcp, delimiter=',') 
-    np.savetxt('totthrptdiffshrdT.csv', totthrptdiffsh, delimiter=',') 
-    np.savetxt('gpUmsaveT.csv', gpUmsave, delimiter=',') 
-    np.savetxt('gpmfsaveT.csv', gpmfsave, delimiter=',') 
-    np.savetxt('rtmUmsaveT.csv', gpUmsave, delimiter=',') 
-    np.savetxt('rtmmfsaveT.csv', gpmfsave, delimiter=',') 
-    np.savetxt('fmUmsaveT.csv', gpUmsave, delimiter=',') 
-    np.savetxt('fmmfsaveT.csv', gpmfsave, delimiter=',') 
+    #np.savetxt('gpUmsaverdT.csv', gpUmsave, delimiter=',') 
+    #np.savetxt('gpmfsaverdT.csv', gpmfsave, delimiter=',') 
+    #np.savetxt('rtmUmsaverdT.csv', rtmUmsave, delimiter=',') 
+    #np.savetxt('rtmmfsaverdT.csv', rtmmfsave, delimiter=',') 
+
 if graphA == graphD:
-    np.savetxt('totthrptfmrdD.csv', totthrptfm, delimiter=',') 
     np.savetxt('totthrptgpirdD.csv', totthrptgpi, delimiter=',') 
-    np.savetxt('totthrptdiffirdD.csv', totthrptdiffi, delimiter=',') 
+    np.savetxt('totgpiUmrdD.csv', totgpiUm, delimiter=',') 
+    np.savetxt('totthrptfmrdD.csv', totthrptfm, delimiter=',') 
     np.savetxt('totfmUmrdD.csv', totfmUm, delimiter=',') 
-    np.savetxt('totgpUmrdD.csv', totgpUm, delimiter=',') 
     np.savetxt('totthrptgprdD.csv', totthrptgp, delimiter=',') 
     np.savetxt('totUmgprdD.csv', totUmgp, delimiter=',') 
-    np.savetxt('totthrptdiffgprdD.csv', totthrptdiffgp, delimiter=',') 
     np.savetxt('totgpshcprdD.csv', totgpshcp, delimiter=',') 
     np.savetxt('totthrptrtmrdD.csv', totthrptrtm, delimiter=',') 
     np.savetxt('totUmrtmrdD.csv', totUmrtm, delimiter=',') 
-    np.savetxt('totthrptdiffrtmrdD.csv', totthrptdiffrtm, delimiter=',') 
     np.savetxt('totrtmshcprdD.csv', totrtmshcp, delimiter=',') 
-    np.savetxt('totthrptdiffshrdD.csv', totthrptdiffsh, delimiter=',') 
-    np.savetxt('gpUmsaveD.csv', gpUmsave, delimiter=',') 
-    np.savetxt('gpmfsaveD.csv', gpmfsave, delimiter=',') 
-    np.savetxt('rtmUmsaveD.csv', gpUmsave, delimiter=',') 
-    np.savetxt('rtmmfsaveD.csv', gpmfsave, delimiter=',') 
-    np.savetxt('fmUmsaveD.csv', gpUmsave, delimiter=',') 
-    np.savetxt('fmmfsaveD.csv', gpmfsave, delimiter=',') 
+    #np.savetxt('gpUmsaverdD.csv', gpUmsave, delimiter=',') 
+    #np.savetxt('gpmfsaverdD.csv', gpmfsave, delimiter=',') 
+    #np.savetxt('rtmUmsaverdD.csv', rtmUmsave, delimiter=',') 
+    #np.savetxt('rtmmfsaverdD.csv', rtmmfsave, delimiter=',') 
+
 if graphA == graphB:
-    np.savetxt('totthrptfmrdB.csv', totthrptfm, delimiter=',') 
     np.savetxt('totthrptgpirdB.csv', totthrptgpi, delimiter=',') 
-    np.savetxt('totthrptdiffirdB.csv', totthrptdiffi, delimiter=',') 
+    np.savetxt('totgpiUmrdB.csv', totgpiUm, delimiter=',') 
+    np.savetxt('totthrptfmrdB.csv', totthrptfm, delimiter=',') 
     np.savetxt('totfmUmrdB.csv', totfmUm, delimiter=',') 
-    np.savetxt('totgpUmrdB.csv', totgpUm, delimiter=',') 
     np.savetxt('totthrptgprdB.csv', totthrptgp, delimiter=',') 
     np.savetxt('totUmgprdB.csv', totUmgp, delimiter=',') 
-    np.savetxt('totthrptdiffgprdB.csv', totthrptdiffgp, delimiter=',') 
     np.savetxt('totgpshcprdB.csv', totgpshcp, delimiter=',') 
     np.savetxt('totthrptrtmrdB.csv', totthrptrtm, delimiter=',') 
     np.savetxt('totUmrtmrdB.csv', totUmrtm, delimiter=',') 
-    np.savetxt('totthrptdiffrtmrdB.csv', totthrptdiffrtm, delimiter=',') 
     np.savetxt('totrtmshcprdB.csv', totrtmshcp, delimiter=',') 
-    np.savetxt('totthrptdiffshrdB.csv', totthrptdiffsh, delimiter=',') 
-    np.savetxt('gpUmsaveB.csv', gpUmsave, delimiter=',') 
-    np.savetxt('gpmfsaveB.csv', gpmfsave, delimiter=',') 
-    np.savetxt('rtmUmsaveB.csv', gpUmsave, delimiter=',') 
-    np.savetxt('rtmmfsaveB.csv', gpmfsave, delimiter=',') 
-    np.savetxt('fmUmsaveB.csv', gpUmsave, delimiter=',') 
-    np.savetxt('fmmfsaveB.csv', gpmfsave, delimiter=',') 
-
-# %%
-
-
+    #np.savetxt('gpUmsaverdB.csv', gpUmsave, delimiter=',') 
+    #np.savetxt('gpmfsaverdB.csv', gpmfsave, delimiter=',') 
+    #np.savetxt('rtmUmsaverdB.csv', rtmUmsave, delimiter=',') 
+    #np.savetxt('rtmmfsaverdB.csv', rtmmfsave, delimiter=',')  
 
 # %% plotting 
 
@@ -774,10 +756,11 @@ elif graphA == graphT:
 fig, ax1 = plt.subplots()
 ax2 = ax1.twinx()
 
-totthrptfmpl = totthrptfm*np.ones([numyears,1])
+#totthrptfmpl = totthrptfm*np.ones([numyears,1])
 
 ln1 = ax1.plot(years, totthrptgp,'--', color = 'b',label = 'GP')
-ln2 = ax1.plot(years, totthrptfmpl,'-', color = 'r',label = 'FM' )
+#ln2 = ax1.plot(years, totthrptfmpl,'-', color = 'r',label = 'FM' )
+ln2 = ax1.plot(years, totthrptfm,'-', color = 'r',label = 'FM' )
 ln3 = ax2.plot(years, totgpshcp,'-.', color = 'g',label = 'Sh.')
 
 ln4 = ax1.plot(years, totthrptrtm,':', color = 'b',label = 'RTM')
@@ -796,7 +779,7 @@ labs = [l.get_label() for l in lns]
 ax1.legend(lns, labs, loc=0,ncol=2, prop={'size': 10})
 #plt.axis([years[0],years[-1],1.0,8.0])
 #plt.savefig('Ytotalthrptdiff' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
-plt.savefig('totalthrptnoloadingrd' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('totalthrptrd' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 # %%
@@ -824,31 +807,56 @@ ax1.legend(lns, labs, loc=0,ncol=2, prop={'size': 10})
 #plt.axis([years[0],years[-1],1.0,8.0])
 #plt.savefig('Ytotalthrptdiff' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 #plt.savefig('JOCNtotalthrpt.pdf', dpi=200,bbox_inches='tight')
-plt.savefig('totalthrptdiffnoloadingrd' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('totalthrptdiffrd' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 plt.show()
     
 # %%
+lkind = 4
 
-linkind1 = 43
+gpmf = np.empty([numyears,1])
+gpUm = np.empty([numyears,1])
+for i in range(numyears):
+    gpmf[i] = gpmfsave[i][lkind]
+    gpUm[i] = gpUmsave[i][lkind]
+
+rtmmf = np.empty([numyears,1])
+rtmUm = np.empty([numyears,1])
+for i in range(numyears):
+    rtmmf[i] = rtmmfsave[i][lkind]
+    rtmUm[i] = rtmUmsave[i][lkind]
+
+if graphA == graphT:
+    np.savetxt('gpUmrdT.csv', gpUm, delimiter=',') 
+    np.savetxt('gpmfrdT.csv', gpmf, delimiter=',') 
+    np.savetxt('rtmUmrdT.csv', rtmUm, delimiter=',') 
+    np.savetxt('rtmmfrdT.csv', rtmmf, delimiter=',') 
+if graphA == graphD:
+    np.savetxt('gpUmrdD.csv', gpUm, delimiter=',') 
+    np.savetxt('gpmfrdD.csv', gpmf, delimiter=',') 
+    np.savetxt('rtmUmrdD.csv', rtmUm, delimiter=',') 
+    np.savetxt('rtmmfrdD.csv', rtmmf, delimiter=',') 
+if graphA == graphB:
+    np.savetxt('gpUmrdB.csv', gpUm, delimiter=',') 
+    np.savetxt('gpmfrdB.csv', gpmf, delimiter=',') 
+    np.savetxt('rtmUmrdB.csv', rtmUm, delimiter=',') 
+    np.savetxt('rtmmfrdB.csv', rtmmf, delimiter=',') 
 
 #imodfN = [int(i) for i in modfN[linkind1]]
 #imodfrtN = [int(i) for i in modfrtN[linkind1]]
 
 #imfplN = [int(i) for i in mfplN[linkind1]]
-y2lb = ['3','4']
+y2lb = ['4','5']
 
 fig, ax1 = plt.subplots()
 ax2 = ax1.twinx()
 
+ln1 = ax1.plot(years, gpUm,'--',color = 'b',label = 'GP U')
+ln2 = ax1.plot(years, rtmUm,'--',color = 'g',label = 'RTM U')
+#ln6 = ax1.plot(years, fmUmpl[linkind1],'--',color = 'r', label = "FM U")
 
-
-ln5 = ax1.plot(years, gpUm[linkind1],'--',color = 'b',label = 'GP U')
-ln4 = ax1.plot(years, rtmUm[linkind1],'--',color = 'g',label = 'RTM U')
-ln6 = ax1.plot(years, fmUmpl[linkind1],'--',color = 'r', label = "FM U")
-
-ln1 = ax2.plot(years, gpmf[linkind1],'-',color = 'g',label = 'GP SE')
-ln2 = ax2.plot(years, rtmmf[linkind1],'-',color = 'b',label = 'RTM SE')
-ln3 = ax2.plot(years, fmmfpl[linkind1],'-',color = 'r',label = 'FM SE')
+ln3 = ax2.plot(years, gpmf,'-',color = 'b',label = 'GP SE')
+ln4 = ax2.plot(years, rtmmf,'-',color = 'g',label = 'RTM SE')
+#ln3 = ax2.plot(years, fmmfpl[linkind1],'-',color = 'r',label = 'FM SE')
 
 ax1.set_xlabel("time (years)")
 ax1.set_ylabel("U margin (dB)")
@@ -856,13 +864,13 @@ ax2.set_ylabel("spectral efficiency (bits/sym)")
 
 ax1.set_xlim([years[0], years[-1]])
 #ax1.set_ylim([-1, 4])
-#ax2.set_ylim([1.9, 4.1])
+ax2.set_ylim([15.7, 32.3])
 
-ax2.set_yticks([8,16])
+ax2.set_yticks([16,32])
 ax2.set_yticklabels(y2lb)
-lns = ln1+ln2+ln3+ln4+ln5+ln6
+lns = ln1+ln2 +ln3+ln4 # +ln5+ln6
 labs = [l.get_label() for l in lns]
-ax1.legend(lns, labs, loc=0,ncol=2, prop={'size': 10})
+ax1.legend(lns, labs,ncol=2, prop={'size': 10})
 #plt.axis([years[0],years[-1],1.0,8.0])
 #plt.savefig('Ytotalthrptdiff' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 plt.savefig('UmarginGPbenefitrd' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
