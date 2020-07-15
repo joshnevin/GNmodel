@@ -88,7 +88,7 @@ if graphA == graphD:
     LspansA = LspansD
     edgesA = edgesD
 
-# %% section 2: ageing effects and margin calculation 
+#  section 2: ageing effects and margin calculation 
 
 PchdBm = np.linspace(-6,6,500)  # 500 datapoints for higher resolution of Pch
 TRxb2b = 26 # fron UCL paper: On the limits of digital back-propagation in the presence of transceiver noise, Lidia Galdino et al.
@@ -123,7 +123,7 @@ FT32 = 16.579
 FT64 = 18.432
 FT128 = 22.185
 
-# %% generate initial random requests 
+#  generate initial random requests 
 
 def removekey(d, keysrc, keydes): # function for removing key from dict - used to remove blocked links 
     r = dict(d)                     # removes the link between nodes 'keysrc' and 'keydes'
@@ -184,7 +184,7 @@ def SNRgen(pathind, yearind, nyqch, edgeinds, edgelens, numlamlk, pthdists, pths
             Gnli = np.sum(Gnlisp)
             Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*totnumspans
             Pch = 1e-3*10**(Popt/10) 
-            snr = (Pch/(Pase + Gnli*Rs*1e9)) - trxaging[yearind] - oxcaging[yearind]
+            snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
             snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
             #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
             sdnorm = sd[yearind]
@@ -244,7 +244,7 @@ def fmsnr(pathind, yearind, nyqch, edgeinds, edgelens, numlamlk, pthdists, pths)
         Gnli = np.sum(Gnlisp)
         Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*totnumspans
         Pch = 1e-3*10**(Popt/10) 
-        snr = (Pch/(Pase + Gnli*Rs*1e9)) - trxaging[yearind] - oxcaging[yearind]
+        snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
         snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
         return lin2db(snr)  
     
@@ -263,7 +263,7 @@ def SNRnew(pathind, yearind, nyqch, edgeinds, edgelens, numlamlk, pthdists, pths
     Leffa = 1/(2*allin)  # the asymptotic effective length [km]  
     links = edgeinds[pathind] # links traversed by path
     numlinks = len(links) # number of links traversed 
-    Gnlisp = np.empty([numlinks,1])
+    Gnlisp = np.zeros([numlinks,1])
     for i in range(numlinks):
         numlam = numlamlk[links[i]][0] # select number wavelengths on given link
         #print(numlam)
@@ -298,15 +298,14 @@ def SNRnew(pathind, yearind, nyqch, edgeinds, edgelens, numlamlk, pthdists, pths
         else:
             Gwdm = (1e-3*10**(Popt/10))/(BchRS*1e9)
             Gnlisp[i] = 1e24*(8/27)*(gam**2)*(Gwdm**3)*(Leff**2)*((np.arcsinh((np.pi**2)*0.5*beta2*Leffa*(BchRS**2)*(NchRS**((2*BchRS)/Df))  ) )/(np.pi*beta2*Leffa ))*numspans                                                                             
-                
-        Gnli = np.sum(Gnlisp)
-        Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*totnumspans
-        Pch = 1e-3*10**(Popt/10) 
-        snr = (Pch/(Pase + Gnli*Rs*1e9)) - trxaging[yearind] - oxcaging[yearind]
-        snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
-        #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
-        sdnorm = sd[yearind]
-        return lin2db(snr) + np.random.normal(0,sdnorm,1) 
+    Gnli = np.sum(Gnlisp)
+    Pase = NF[yearind]*h*f*(db2lin(alpha[yearind]*Ls) - 1)*Rs*1e9*totnumspans
+    Pch = 1e-3*10**(Popt/10) 
+    snr = (Pch/(Pase + Gnli*Rs*1e9)) - db2lin(trxaging[yearind] + oxcaging[yearind])
+    snr = ( snr**(-1) + (db2lin(TRxb2b))**(-1) )**(-1)
+    #snr = snr + np.random.normal(0,db2lin(sd),numpoints)
+    sdnorm = sd[yearind]
+    return lin2db(snr) + np.random.normal(0,sdnorm,1) 
 
 def GPtrain(x,y):
         y = y.reshape(-1,1)
@@ -327,11 +326,13 @@ def GPtrain(x,y):
         sigmai = np.mean(ystarpi - ystari)
         return ystari, sigmai
 
-def GPreach(pathind, numsig, yearind, nyqch):
-    truesnr = SNRgen(pathind,yearind, nyqch)
+def GPreach(pathind, numsig, yearind, nyqch, edgeinds, edgelens, numlamlk, pthdists, pths):
+    truesnr = SNRgen(pathind,yearind, nyqch, edgeinds, edgelens, numlamlk, pthdists, pths)
+    #print(truesnr)
     x = np.linspace(0,numpoints,numpoints)
     prmn, sigma = GPtrain(x,truesnr)
     prmn = np.mean(prmn)
+    #print(prmn)
     if (prmn - FT128)/sigma > numsig:
         FT = FT128
         mfG = 128
@@ -356,15 +357,17 @@ def GPreach(pathind, numsig, yearind, nyqch):
     else:
         print("not able to establish a link")
     C = 2*np.log2(1+db2lin(prmn))  # Shannon capacity of AWGN channel under and average power constraint in bits/symb
-    if SNRnew(pathind,yearind, nyqch) > FT:
+    newsnrval = SNRnew(pathind,yearind, nyqch, edgeinds, edgelens, numlamlk, pthdists, pths)
+    if newsnrval > FT:
         estbl = 1
         Um = prmn - numsig*sigma - FT
     else:
         estbl = 0
+        #print(FT)
     return mfG, estbl, Um, C    
         
-def rtmreach(pathind, numsig, yearind, nyqch): # RTM = real-time + (D) margin
-    truesnr = SNRgen(pathind,yearind, nyqch)
+def rtmreach(pathind, numsig, yearind, nyqch, edgeinds, edgelens, numlamlk, pthdists, pths): # RTM = real-time + (D) margin
+    truesnr = SNRgen(pathind,yearind, nyqch, edgeinds, edgelens, numlamlk, pthdists, pths)
     meansnr = np.mean(truesnr)
     if meansnr - fmD > FT128:
         FT = FT128
@@ -391,16 +394,16 @@ def rtmreach(pathind, numsig, yearind, nyqch): # RTM = real-time + (D) margin
         print("not able to establish a link")
 
     C = 2*np.log2(1+db2lin(meansnr)) # this yields capacity in bits/sym
-    if SNRnew(pathind,yearind, nyqch) > FT:
+    if SNRnew(pathind,yearind, nyqch, edgeinds, edgelens, numlamlk, pthdists, pths) > FT:
         estbl = 1
         Um = meansnr - fmD - FT
     else:
         estbl = 0
     return mfG, estbl, Um, C
 
-def fmreach(pathind):
+def fmreach(pathind, edgeinds, edgelens, numlamlk, pthdists, pths):
     
-    gnSNRF = fmsnr(pathind, -1, False)
+    gnSNRF = fmsnr(pathind, -1, False, edgeinds, edgelens, numlamlk, pthdists, pths)
     # fixed margin case
     if gnSNRF - fmD > FT128:
         MF = 128
@@ -428,9 +431,9 @@ def fmreach(pathind):
     return MF, UmF
 
 
-def gpireach(pathind):
+def gpireach(pathind, edgeinds, edgelens, numlamlk, pthdists, pths):
     
-    gnSNRG = fmsnr(pathind, 0, False)
+    gnSNRG = fmsnr(pathind, 0, False, edgeinds, edgelens, numlamlk, pthdists, pths)
     
     if gnSNRG - fmDGI > FT128:
         MFG = 128
@@ -543,13 +546,85 @@ def randpthsgen(initreq, numreqcum):
     
 numreq = [int(20*(1.2)**(x)) for x in years]
 numreqcum = [numreq[i+1] - numreq[i] for i in range(numyears-1)]
-pthdiststot, pthstot = randpthsgen(20, numreqcum)
+
+
+def thrptcalcinitgpi(gpimf, gpiUm, numpths):
+    ratesgpi = np.empty([numpths,1])
+    for i in range(numpths):
+        ratesgpi[i] = rateconv(gpimf[i][0])
+    totthrptgpi = np.sum(ratesgpi, axis=0)/1e3
+    #totthrptdiffi = totthrptgpi - totthrptfm
+    totgpiUm = np.sum(gpiUm, axis=0)
+    return totthrptgpi, totgpiUm
+
+def thrptcalcinitfm(fmmf, fmUm, numpths):
+    ratesfm = np.empty([numpths,1])
+    for i in range(numpths):
+        ratesfm[i] = rateconv(fmmf[i][0])
+    totthrptfm = np.sum(ratesfm, axis=0)/1e3
+    totfmUm = np.sum(fmUm, axis=0)
+    return totthrptfm, totfmUm
+
+
+def thrptcalc(gpmf, gpUm, gpshcp, rtmmf, rtmUm, rtmshcp, numpths, totthrptfm):
+    ratesgp = np.empty([numpths,1])
+    ratesrtm = np.empty([numpths,1])
+    FECOH = 0.2
+    for i in range(numpths):
+        ratesgp[i] = rateconv(gpmf[i][0])
+        ratesrtm[i] = rateconv(rtmmf[i][0])
+    totthrptgp = np.sum(ratesgp, axis=0)/1e3
+    totthrptrtm = np.sum(ratesrtm, axis=0)/1e3
+    totgpshcp = np.sum(gpshcp,axis=0).reshape(numyears,1)*Rs*(1-FECOH)*2/1e3
+    totrtmshcp = np.sum(rtmshcp,axis=0).reshape(numyears,1)*Rs*(1-FECOH)*2/1e3
+
+    totUmgp = np.sum(gpUm,axis=0).reshape(numyears,1)
+    totUmrtm = np.sum(rtmUm,axis=0).reshape(numyears,1)
+     
+    totthrptdiffgp = ((totthrptgp - totthrptfm)/totthrptfm)*100
+    totthrptdiffrtm = ((totthrptrtm - totthrptfm)/totthrptfm)*100
+    
+    totthrptdiffsh = ((totgpshcp - totthrptfm)/totthrptfm)*100
  
-# %%
+    return totthrptgp, totUmgp, totthrptdiffgp, totgpshcp, totthrptrtm, totUmrtm, totthrptdiffrtm, totrtmshcp, totthrptdiffsh
+
+def rateconv(modfor):
+    if modfor == 2:
+        rate = 50
+    elif modfor == 4:
+        rate = 100
+    elif modfor == 8:
+        rate = 150    
+    elif modfor == 16:
+        rate = 200
+    elif modfor == 32:
+        rate = 250
+    elif modfor == 64:
+        rate = 300
+    elif modfor == 128:
+        rate = 350
+    return rate
 
 def randyearloop(initreq, numreqcum):
     
+    gpUmsave = []
+    gpmfsave = []
+    rtmUmsave = []
+    rtmmfsave = []
+    
+    
+    totthrptgp = np.empty([numyears,1])
+    totUmgp = np.empty([numyears,1])
+    totthrptdiffgp = np.empty([numyears,1])
+    totgpshcp = np.empty([numyears,1])
+    totthrptrtm = np.empty([numyears,1])
+    totUmrtm = np.empty([numyears,1])
+    totthrptdiffrtm = np.empty([numyears,1])
+    totrtmshcp = np.empty([numyears,1])
+    totthrptdiffsh = np.empty([numyears,1])
+    
     for i in range(numyears):
+        
         if i == 0: 
             pthdists, pths = findroutesrand(nodesA, True, initreq)  
         else:
@@ -569,123 +644,117 @@ def randyearloop(initreq, numreqcum):
         if i == 0:
             gpimf = np.empty([numpths,1]) # GP initial modulation format
             gpiUm = np.empty([numpths,1]) # GP initial U margins 
-            for i in range(numpths):
-                gpimf[i],  gpiUm[i] = gpireach(i)
-        if i == numyears:
+            for l in range(numpths):
+                gpimf[l],  gpiUm[l] = gpireach(l, edgeinds, edgelens, numlamlk, pthdists, pths)
+            totthrptgpi, totgpiUm = thrptcalcinitgpi(gpimf, gpiUm, numpths)
+                
+        if i == numyears - 1:
             fmmf = np.empty([numpths,1]) # fixed margin modulation format 
             fmUm = np.empty([numpths,1]) # fixed margin U margins 
-            for i in range(numpths):
-                fmmf[i],  fmUm[i] = fmreach(i)  
+            for z in range(numpths):
+                fmmf[z],  fmUm[z] = fmreach(z, edgeinds, edgelens, numlamlk, pthdists, pths)  
+            totthrptfm, totfmUm = thrptcalcinitfm(fmmf, fmUm, numpths)
+            
         #  section 6: implement GP reach algorithm
-        gpmf = np.empty([numpths,numyears])
-        gpestbl = np.empty([numpths,numyears])
-        gpUm = np.empty([numpths,numyears])
-        gpshcp = np.empty([numpths,numyears])
-        rtmmf = np.empty([numpths,numyears])
-        rtmestbl = np.empty([numpths,numyears])
-        rtmUm = np.empty([numpths,numyears])
-        rtmshcp = np.empty([numpths,numyears])
+     
+        gpmf = np.empty([numpths,1])
+        gpestbl = np.empty([numpths,1])
+        gpUm = np.empty([numpths,1])
+        gpshcp = np.empty([numpths,1])
+        rtmmf = np.empty([numpths,1])
+        rtmestbl = np.empty([numpths,1])
+        rtmUm = np.empty([numpths,1])
+        rtmshcp = np.empty([numpths,1])
         start = time.time()
         for j in range(numpths):
               # change this later - will need to implement a time loop for the whole script, put it all in a big function
-            gpmf[j][i], gpestbl[j][i], gpUm[j][i], gpshcp[j][i] = GPreach(i, 5, j, False)
-            rtmmf[j][i], rtmestbl[j][i], rtmUm[j][i], rtmshcp[j][i] = rtmreach(i, 5, j, False)
+            gpmf[j], gpestbl[j], gpUm[j], gpshcp[j] = GPreach(j, 5, i, False, edgeinds, edgelens, numlamlk, pthdists, pths)
+            rtmmf[j], rtmestbl[j], rtmUm[j], rtmshcp[j] = rtmreach(j, 5, i, False, edgeinds, edgelens, numlamlk, pthdists, pths)
         end = time.time()
         
         print("GP algorithm took " + str((end-start)/60) + " minutes")
+        
+        gpUmsave.append(gpUm)
+        gpmfsave.append(gpmf)
+        rtmUmsave.append(rtmUm)
+        rtmmfsave.append(rtmmf)
+        
     
-    return fmmf, gpimf, fmUm, gpiUm, gpmf, gpestbl, gpUm, gpshcp, rtmmf, rtmestbl, rtmUm, rtmshcp
+        totthrptgp[i], totUmgp[i], totthrptdiffgp[i],totgpshcp[i], totthrptrtm[i], totUmrtm[i], totthrptdiffrtm[i], totrtmshcp[i], totthrptdiffsh[i] = thrptcalc(gpmf, gpUm, gpshcp, rtmmf, rtmUm, rtmshcp, numpths, totthrptfm)
     
-fmmf, gpimf, fmUm, gpiUm, gpmf, gpestbl, gpUm, gpshcp, rtmmf, rtmestbl, rtmUm, rtmshcp = randyearloop()
+    
+    return totthrptgpi, totgpiUm, totthrptfm, totfmUm, totthrptgp, totUmgp, totthrptdiffgp, totgpshcp, totthrptrtm, totUmrtm, totthrptdiffrtm, totrtmshcp, totthrptdiffsh, gpUmsave, gpmfsave, rtmUmsave, rtmmfsave
+    
+totthrptgpi, totgpiUm, totthrptfm, totfmUm, totthrptgp, totUmgp, totthrptdiffgp, totgpshcp, totthrptrtm, totUmrtm, totthrptdiffrtm, totrtmshcp, totthrptdiffsh, gpUmsave, gpmfsave, rtmUmsave, rtmmfsave = randyearloop(20, numreqcum)
 
 # %% section 7: determine throughput for the ring network 
 
 if graphA == graphT:
-    np.savetxt('gpmfT.csv', gpmf, delimiter=',') 
-    np.savetxt('gpUmT.csv', gpUm, delimiter=',') 
-    np.savetxt('gpshcpT.csv', gpshcp, delimiter=',') 
-    np.savetxt('rtmmfT.csv', rtmmf, delimiter=',') 
-    np.savetxt('rtmUmT.csv', rtmUm, delimiter=',') 
-    np.savetxt('rtmshcpT.csv', rtmshcp, delimiter=',') 
+    np.savetxt('totthrptfmrdT.csv', totthrptfm, delimiter=',') 
+    np.savetxt('totthrptgpirdT.csv', totthrptgpi, delimiter=',') 
+    np.savetxt('totthrptdiffirdT.csv', totthrptdiffi, delimiter=',') 
+    np.savetxt('totfmUmrdT.csv', totfmUm, delimiter=',') 
+    np.savetxt('totgpUmrdT.csv', totgpUm, delimiter=',') 
+    np.savetxt('totthrptgprdT.csv', totthrptgp, delimiter=',') 
+    np.savetxt('totUmgprdT.csv', totUmgp, delimiter=',') 
+    np.savetxt('totthrptdiffgprdT.csv', totthrptdiffgp, delimiter=',') 
+    np.savetxt('totgpshcprdT.csv', totgpshcp, delimiter=',') 
+    np.savetxt('totthrptrtmrdT.csv', totthrptrtm, delimiter=',') 
+    np.savetxt('totUmrtmrdT.csv', totUmrtm, delimiter=',') 
+    np.savetxt('totthrptdiffrtmrdT.csv', totthrptdiffrtm, delimiter=',') 
+    np.savetxt('totrtmshcprdT.csv', totrtmshcp, delimiter=',') 
+    np.savetxt('totthrptdiffshrdT.csv', totthrptdiffsh, delimiter=',') 
+    np.savetxt('gpUmsaveT.csv', gpUmsave, delimiter=',') 
+    np.savetxt('gpmfsaveT.csv', gpmfsave, delimiter=',') 
+    np.savetxt('rtmUmsaveT.csv', gpUmsave, delimiter=',') 
+    np.savetxt('rtmmfsaveT.csv', gpmfsave, delimiter=',') 
+    np.savetxt('fmUmsaveT.csv', gpUmsave, delimiter=',') 
+    np.savetxt('fmmfsaveT.csv', gpmfsave, delimiter=',') 
 if graphA == graphD:
-    np.savetxt('gpmfD.csv', gpmf, delimiter=',') 
-    np.savetxt('gpUmD.csv', gpUm, delimiter=',') 
-    np.savetxt('gpshcpD.csv', gpshcp, delimiter=',') 
-    np.savetxt('rtmmfD.csv', rtmmf, delimiter=',') 
-    np.savetxt('rtmUmD.csv', rtmUm, delimiter=',') 
-    np.savetxt('rtmshcpD.csv', rtmshcp, delimiter=',') 
+    np.savetxt('totthrptfmrdD.csv', totthrptfm, delimiter=',') 
+    np.savetxt('totthrptgpirdD.csv', totthrptgpi, delimiter=',') 
+    np.savetxt('totthrptdiffirdD.csv', totthrptdiffi, delimiter=',') 
+    np.savetxt('totfmUmrdD.csv', totfmUm, delimiter=',') 
+    np.savetxt('totgpUmrdD.csv', totgpUm, delimiter=',') 
+    np.savetxt('totthrptgprdD.csv', totthrptgp, delimiter=',') 
+    np.savetxt('totUmgprdD.csv', totUmgp, delimiter=',') 
+    np.savetxt('totthrptdiffgprdD.csv', totthrptdiffgp, delimiter=',') 
+    np.savetxt('totgpshcprdD.csv', totgpshcp, delimiter=',') 
+    np.savetxt('totthrptrtmrdD.csv', totthrptrtm, delimiter=',') 
+    np.savetxt('totUmrtmrdD.csv', totUmrtm, delimiter=',') 
+    np.savetxt('totthrptdiffrtmrdD.csv', totthrptdiffrtm, delimiter=',') 
+    np.savetxt('totrtmshcprdD.csv', totrtmshcp, delimiter=',') 
+    np.savetxt('totthrptdiffshrdD.csv', totthrptdiffsh, delimiter=',') 
+    np.savetxt('gpUmsaveD.csv', gpUmsave, delimiter=',') 
+    np.savetxt('gpmfsaveD.csv', gpmfsave, delimiter=',') 
+    np.savetxt('rtmUmsaveD.csv', gpUmsave, delimiter=',') 
+    np.savetxt('rtmmfsaveD.csv', gpmfsave, delimiter=',') 
+    np.savetxt('fmUmsaveD.csv', gpUmsave, delimiter=',') 
+    np.savetxt('fmmfsaveD.csv', gpmfsave, delimiter=',') 
 if graphA == graphB:
-    np.savetxt('gpmfB.csv', gpmf, delimiter=',') 
-    np.savetxt('gpUmB.csv', gpUm, delimiter=',') 
-    np.savetxt('gpshcpB.csv', gpshcp, delimiter=',') 
-    np.savetxt('rtmmfB.csv', rtmmf, delimiter=',') 
-    np.savetxt('rtmUmB.csv', rtmUm, delimiter=',') 
-    np.savetxt('rtmshcpB.csv', rtmshcp, delimiter=',') 
+    np.savetxt('totthrptfmrdB.csv', totthrptfm, delimiter=',') 
+    np.savetxt('totthrptgpirdB.csv', totthrptgpi, delimiter=',') 
+    np.savetxt('totthrptdiffirdB.csv', totthrptdiffi, delimiter=',') 
+    np.savetxt('totfmUmrdB.csv', totfmUm, delimiter=',') 
+    np.savetxt('totgpUmrdB.csv', totgpUm, delimiter=',') 
+    np.savetxt('totthrptgprdB.csv', totthrptgp, delimiter=',') 
+    np.savetxt('totUmgprdB.csv', totUmgp, delimiter=',') 
+    np.savetxt('totthrptdiffgprdB.csv', totthrptdiffgp, delimiter=',') 
+    np.savetxt('totgpshcprdB.csv', totgpshcp, delimiter=',') 
+    np.savetxt('totthrptrtmrdB.csv', totthrptrtm, delimiter=',') 
+    np.savetxt('totUmrtmrdB.csv', totUmrtm, delimiter=',') 
+    np.savetxt('totthrptdiffrtmrdB.csv', totthrptdiffrtm, delimiter=',') 
+    np.savetxt('totrtmshcprdB.csv', totrtmshcp, delimiter=',') 
+    np.savetxt('totthrptdiffshrdB.csv', totthrptdiffsh, delimiter=',') 
+    np.savetxt('gpUmsaveB.csv', gpUmsave, delimiter=',') 
+    np.savetxt('gpmfsaveB.csv', gpmfsave, delimiter=',') 
+    np.savetxt('rtmUmsaveB.csv', gpUmsave, delimiter=',') 
+    np.savetxt('rtmmfsaveB.csv', gpmfsave, delimiter=',') 
+    np.savetxt('fmUmsaveB.csv', gpUmsave, delimiter=',') 
+    np.savetxt('fmmfsaveB.csv', gpmfsave, delimiter=',') 
 
 # %%
 
-def rateconv(modfor):
-    if modfor == 2:
-        rate = 50
-    elif modfor == 4:
-        rate = 100
-    elif modfor == 8:
-        rate = 150    
-    elif modfor == 16:
-        rate = 200
-    elif modfor == 32:
-        rate = 250
-    elif modfor == 64:
-        rate = 300
-    elif modfor == 128:
-        rate = 350
-    return rate
-
-def thrptcalcinit(fmmf, gpimf, fmUm, gpiUm):
-    ratesfm = np.empty([numpths,1])
-    ratesgpi = np.empty([numpths,1])
-    
-    for i in range(numpths):
-        ratesfm[i] = rateconv(fmmf[i][0])
-        ratesgpi[i] = rateconv(gpimf[i][0])
-    
-    totthrptfm = np.sum(ratesfm, axis=0)/1e3
-    totthrptgpi = np.sum(ratesgpi, axis=0)/1e3
-    
-    totthrptdiffi = totthrptgpi - totthrptfm
-    
-    totfmUm = np.sum(fmUm, axis=0)
-    totgpUm = np.sum(gpUm, axis=0)
-    
-    return totthrptfm, totthrptgpi, totthrptdiffi, totfmUm, totgpUm
-
-totthrptfm, totthrptgpi, totthrptdiffi, totfmUm, totgpUm = thrptcalcinit(fmmf, gpimf, fmUm, gpiUm)
-
-def thrptcalc(gpmf, gpUm, gpshcp, rtmmf, rtmUm, rtmshcp):
-    ratesgp = np.empty([numpths,numyears])
-    ratesrtm = np.empty([numpths,numyears])
-    FECOH = 0.2
-
-    for i in range(numpths):
-        for j in range(numyears):
-            ratesgp[i][j] = rateconv(gpmf[i][j])
-            ratesrtm[i][j] = rateconv(rtmmf[i][j])
-    totthrptgp = np.sum(ratesgp, axis=0)/1e3
-    totthrptrtm = np.sum(ratesrtm, axis=0)/1e3
-    totgpshcp = np.sum(gpshcp,axis=0).reshape(numyears,1)*Rs*(1-FECOH)*2/1e3
-    totrtmshcp = np.sum(rtmshcp,axis=0).reshape(numyears,1)*Rs*(1-FECOH)*2/1e3
-
-    totUmgp = np.sum(gpUm,axis=0).reshape(numyears,1)
-    totUmrtm = np.sum(rtmUm,axis=0).reshape(numyears,1)
-     
-    totthrptdiffgp = ((totthrptgp - totthrptfm)/totthrptfm)*100
-    totthrptdiffrtm = ((totthrptrtm - totthrptfm)/totthrptfm)*100
-    
-    totthrptdiffsh = ((totgpshcp - totthrptfm)/totthrptfm)*100
- 
-    return totthrptgp, totUmgp, totthrptdiffgp, totgpshcp, totthrptrtm, totUmrtm, totthrptdiffrtm, totrtmshcp, totthrptdiffsh
-
-totthrptgp, totUmgp, totthrptdiffgp,totgpshcp, totthrptrtm, totUmrtm, totthrptdiffrtm, totrtmshcp, totthrptdiffsh = thrptcalc(gpmf, gpUm, gpshcp, rtmmf, rtmUm, rtmshcp)
 
 
 # %% plotting 
@@ -695,8 +764,13 @@ font = { 'family' : 'sans-serif',
                 'size'   : 15}
 matplotlib.rc('font', **font)
 
+if graphA == graphB:
+    suffix = "B"
+elif graphA == graphD:
+    suffix = "D"
+elif graphA == graphT:
+    suffix = "T"
 
-    
 fig, ax1 = plt.subplots()
 ax2 = ax1.twinx()
 
@@ -722,7 +796,7 @@ labs = [l.get_label() for l in lns]
 ax1.legend(lns, labs, loc=0,ncol=2, prop={'size': 10})
 #plt.axis([years[0],years[-1],1.0,8.0])
 #plt.savefig('Ytotalthrptdiff' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
-plt.savefig('totalthrptnoloadingB.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('totalthrptnoloadingrd' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 # %%
@@ -750,7 +824,7 @@ ax1.legend(lns, labs, loc=0,ncol=2, prop={'size': 10})
 #plt.axis([years[0],years[-1],1.0,8.0])
 #plt.savefig('Ytotalthrptdiff' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 #plt.savefig('JOCNtotalthrpt.pdf', dpi=200,bbox_inches='tight')
-plt.savefig('totalthrptdiffnoloadingB.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('totalthrptdiffnoloadingrd' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 plt.show()
     
 # %%
@@ -766,8 +840,7 @@ y2lb = ['3','4']
 fig, ax1 = plt.subplots()
 ax2 = ax1.twinx()
 
-fmUmpl = fmUm*np.ones([numpths,numyears])
-fmmfpl = fmmf*np.ones([numpths,numyears])
+
 
 ln5 = ax1.plot(years, gpUm[linkind1],'--',color = 'b',label = 'GP U')
 ln4 = ax1.plot(years, rtmUm[linkind1],'--',color = 'g',label = 'RTM U')
@@ -792,7 +865,7 @@ labs = [l.get_label() for l in lns]
 ax1.legend(lns, labs, loc=0,ncol=2, prop={'size': 10})
 #plt.axis([years[0],years[-1],1.0,8.0])
 #plt.savefig('Ytotalthrptdiff' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
-plt.savefig('UmarginGPbenefitB.pdf', dpi=200,bbox_inches='tight')
+plt.savefig('UmarginGPbenefitrd' + str(suffix) + '.pdf', dpi=200,bbox_inches='tight')
 plt.show()
 
 
